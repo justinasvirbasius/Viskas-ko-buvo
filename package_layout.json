@@ -1,0 +1,27 @@
+{
+  "format": "sdfpack-rechts-v3",
+  "arrays": {
+    "sdf_raw": "float32[nx,ny,nz]",
+    "sdf": "float32[nx,ny,nz]",
+    "occupancy": "uint8[nx,ny,nz]",
+    "material": "int16[nx,ny,nz]",
+    "gradient": "float32[nx,ny,nz,3]",
+    "normal": "float32[nx,ny,nz,3]",
+    "curvature": "float32[nx,ny,nz]",
+    "surface": "float32[nx,ny,nz]",
+    "entropy": "float32[nx,ny,nz]",
+    "lod": "uint8[nx,ny,nz]",
+    "rechts": "float32[nx,ny,nz]",
+    "value_pressure": "float32[nx,ny,nz]",
+    "moat": "float32[nx,ny,nz]",
+    "band_index": "uint8[nx,ny,nz]",
+    "chunk_id": "int32[nx,ny,nz]",
+    "chunk_score": "float32[cx,cy,cz]",
+    "chunk_bounds": "float32[cx,cy,cz,6]",
+    "seam": "uint8[nx,ny,nz]",
+    "mip_sdf_1": "float32",
+    "mip_entropy_1": "float32",
+    "mip_sdf_2": "float32",
+    "mip_entropy_2": "float32"
+  }
+}

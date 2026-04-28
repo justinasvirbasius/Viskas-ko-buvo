@@ -1,0 +1,17 @@
+{
+  "vertex_count": 1298,
+  "edge_count": 3882,
+  "face_count": 2588,
+  "removed_degenerate_faces_last_check": 0,
+  "boundary_edge_count": 0,
+  "nonmanifold_edge_count": 0,
+  "euler_characteristic": 4,
+  "signed_volume": 6.230762913015791,
+  "surface_area": 18.970295062170976,
+  "closed": true,
+  "manifold": true,
+  "oriented_positive_volume": true,
+  "solid_rechts_score": 1.0,
+  "strict_gate_passed": true,
+  "strict_gate_reasons": []
+}

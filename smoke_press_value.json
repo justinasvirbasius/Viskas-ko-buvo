@@ -1,0 +1,109 @@
+{
+  "format": "sdfpack-rechts-v3-smoke-press",
+  "profile": "debug",
+  "resolution": [
+    28,
+    28,
+    28
+  ],
+  "elapsed_seconds": 1.7971302579999247,
+  "meta_stats": {
+    "resolution": [
+      28,
+      28,
+      28
+    ],
+    "bounds_min": [
+      -2.9,
+      -2.9,
+      -2.9
+    ],
+    "bounds_max": [
+      2.9,
+      2.9,
+      2.9
+    ],
+    "spacing": [
+      0.21481481481481482,
+      0.21481481481481482,
+      0.21481481481481482
+    ],
+    "chunk_size": [
+      8,
+      8,
+      8
+    ],
+    "inside_voxels": 661,
+    "surface_voxels": 1834,
+    "material_ids": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "sdf_min": -0.6381745934486389,
+    "sdf_max": 3.900376558303833,
+    "entropy_mean": 0.16058051586151123,
+    "entropy_max": 1.0,
+    "rechts_mean": 0.8812494277954102,
+    "rechts_min": 0.004837880842387676,
+    "rechts_max": 0.9996033310890198,
+    "value_pressure_mean": 0.16580885648727417,
+    "value_pressure_max": 0.9999993443489075,
+    "chunk_grid": [
+      4,
+      4,
+      4
+    ],
+    "chunk_score_max": 0.8349549174308777,
+    "mip_sdf_1_shape": [
+      14,
+      14,
+      14
+    ],
+    "mip_sdf_2_shape": [
+      7,
+      7,
+      7
+    ]
+  },
+  "mesh_validation": {
+    "vertex_count": 1822,
+    "edge_count": 5454,
+    "face_count": 3636,
+    "removed_degenerate_faces_last_check": 0,
+    "boundary_edge_count": 0,
+    "nonmanifold_edge_count": 0,
+    "euler_characteristic": 4,
+    "signed_volume": 6.282213708910286,
+    "surface_area": 19.163009874589157,
+    "closed": true,
+    "manifold": true,
+    "oriented_positive_volume": true,
+    "solid_rechts_score": 1.0,
+    "strict_gate_passed": true,
+    "strict_gate_reasons": []
+  },
+  "package_value_score": 0.9999998688697815,
+  "pressure_verdict": "PASS",
+  "minimums": {
+    "solid_rechts_score": 0.995,
+    "package_value_score": 0.85
+  },
+  "outputs": {
+    "package": "/mnt/data/sdf_prepackager_rechts_v3/out_press/package.npz",
+    "scene": "/mnt/data/sdf_prepackager_rechts_v3/out_press/scene.json",
+    "validation": "/mnt/data/sdf_prepackager_rechts_v3/out_press/validation.json",
+    "meshes": {
+      "obj": "/mnt/data/sdf_prepackager_rechts_v3/out_press/mesh.obj",
+      "ply": "/mnt/data/sdf_prepackager_rechts_v3/out_press/mesh.ply",
+      "stl": "/mnt/data/sdf_prepackager_rechts_v3/out_press/mesh.stl"
+    },
+    "runtime": {
+      "runtime_cpp/sdf_package_layout.hpp": "/mnt/data/sdf_prepackager_rechts_v3/out_press/runtime_cpp/sdf_package_layout.hpp",
+      "runtime_c/sdf_package_layout.h": "/mnt/data/sdf_prepackager_rechts_v3/out_press/runtime_c/sdf_package_layout.h",
+      "schemas/package_layout.json": "/mnt/data/sdf_prepackager_rechts_v3/out_press/schemas/package_layout.json"
+    },
+    "manifest": "/mnt/data/sdf_prepackager_rechts_v3/out_press/manifest.json"
+  }
+}

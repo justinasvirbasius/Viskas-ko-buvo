@@ -1,0 +1,13 @@
+{
+  "format": "sdfpack-rechts-v3-scene",
+  "bounds_min": [-2.9, -2.9, -2.9],
+  "bounds_max": [2.9, 2.9, 2.9],
+  "resolution": [48, 48, 48],
+  "primitives": [
+    {"type": "sphere", "center": [0.0, 0.0, 0.0], "radius": 1.12, "material_id": 1, "op": "union"},
+    {"type": "box", "center": [0.42, 0.0, 0.02], "half_extents": [0.62, 0.78, 0.58], "material_id": 2, "op": "smooth_union", "smooth_k": 0.30},
+    {"type": "capsule", "a": [-1.25, -0.90, -0.38], "b": [1.35, 0.98, 0.56], "radius": 0.22, "material_id": 3, "op": "union"},
+    {"type": "torus", "center": [-0.20, 0.15, 0.0], "major_radius": 0.85, "minor_radius": 0.11, "material_id": 4, "op": "smooth_union", "smooth_k": 0.16},
+    {"type": "sphere", "center": [-0.45, 0.0, 0.20], "radius": 0.30, "material_id": 9, "op": "subtract"}
+  ]
+}

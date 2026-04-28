@@ -1,0 +1,143 @@
+{
+  "format": "sdfpack-rechts-v3-output",
+  "profile": "debug",
+  "build_report": {
+    "primitive_count": 5,
+    "operations": [
+      {
+        "op": "union",
+        "material_id": 1,
+        "type": "Sphere"
+      },
+      {
+        "op": "smooth_union",
+        "material_id": 2,
+        "type": "Box"
+      },
+      {
+        "op": "union",
+        "material_id": 3,
+        "type": "Capsule"
+      },
+      {
+        "op": "smooth_union",
+        "material_id": 4,
+        "type": "Torus"
+      },
+      {
+        "op": "subtract",
+        "material_id": 9,
+        "type": "Sphere"
+      }
+    ],
+    "raw_boundary": {
+      "border_min_sdf": 1.3346531391143799,
+      "border_mean_sdf": 2.487484931945801,
+      "surface_touches_bounds": false
+    },
+    "packaged_boundary": {
+      "border_min_sdf": 1.3345962762832642,
+      "border_mean_sdf": 2.487419605255127,
+      "surface_touches_bounds": false
+    },
+    "resolution": [
+      24,
+      24,
+      24
+    ],
+    "spacing": [
+      0.25217391304347825,
+      0.25217391304347825,
+      0.25217391304347825
+    ]
+  },
+  "meta_stats": {
+    "resolution": [
+      24,
+      24,
+      24
+    ],
+    "bounds_min": [
+      -2.9,
+      -2.9,
+      -2.9
+    ],
+    "bounds_max": [
+      2.9,
+      2.9,
+      2.9
+    ],
+    "spacing": [
+      0.25217391304347825,
+      0.25217391304347825,
+      0.25217391304347825
+    ],
+    "chunk_size": [
+      8,
+      8,
+      8
+    ],
+    "inside_voxels": 388,
+    "surface_voxels": 1333,
+    "material_ids": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "sdf_min": -0.5988880395889282,
+    "sdf_max": 3.9003562927246094,
+    "entropy_mean": 0.16972818970680237,
+    "entropy_max": 1.0,
+    "rechts_mean": 0.8719824552536011,
+    "rechts_min": 0.0028548785485327244,
+    "rechts_max": 0.9994044899940491,
+    "value_pressure_mean": 0.1887303739786148,
+    "value_pressure_max": 0.9999991059303284,
+    "chunk_grid": [
+      3,
+      3,
+      3
+    ],
+    "chunk_score_max": 0.8756418824195862,
+    "mip_sdf_1_shape": [
+      12,
+      12,
+      12
+    ],
+    "mip_sdf_2_shape": [
+      6,
+      6,
+      6
+    ]
+  },
+  "mesh_validation": {
+    "vertex_count": 1298,
+    "edge_count": 3882,
+    "face_count": 2588,
+    "removed_degenerate_faces_last_check": 0,
+    "boundary_edge_count": 0,
+    "nonmanifold_edge_count": 0,
+    "euler_characteristic": 4,
+    "signed_volume": 6.230762913015791,
+    "surface_area": 18.970295062170976,
+    "closed": true,
+    "manifold": true,
+    "oriented_positive_volume": true,
+    "solid_rechts_score": 1.0,
+    "strict_gate_passed": true,
+    "strict_gate_reasons": []
+  },
+  "package_value_score": 0.9999998211860658,
+  "outputs": {
+    "package": "/mnt/data/sdf_prepackager_rechts_v3/out_scene/package.npz",
+    "scene": "/mnt/data/sdf_prepackager_rechts_v3/out_scene/scene.json",
+    "validation": "/mnt/data/sdf_prepackager_rechts_v3/out_scene/validation.json",
+    "meshes": {
+      "obj": "/mnt/data/sdf_prepackager_rechts_v3/out_scene/mesh.obj",
+      "ply": "/mnt/data/sdf_prepackager_rechts_v3/out_scene/mesh.ply",
+      "stl": "/mnt/data/sdf_prepackager_rechts_v3/out_scene/mesh.stl"
+    },
+    "manifest": "/mnt/data/sdf_prepackager_rechts_v3/out_scene/manifest.json"
+  }
+}
