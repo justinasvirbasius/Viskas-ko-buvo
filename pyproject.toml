@@ -1,0 +1,9 @@
+[project]
+name = "sdf-prepackager-rechts-v3"
+version = "0.3.0"
+description = "Strict SDF prepackager with proper meta maps, smoke-press validation, and solid mesh exports."
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
