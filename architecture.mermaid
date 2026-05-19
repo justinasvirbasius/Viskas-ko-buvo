@@ -1,0 +1,44 @@
+graph TB
+    subgraph OS["Windows OS (Win32 API)"]
+        USER32["user32.dll<br/>(windowing, input)"]
+        GDI32["gdi32.dll<br/>(drawing)"]
+        KERNEL32["kernel32.dll<br/>(timers, memory)"]
+    end
+
+    subgraph CORE["MiniShell Core"]
+        ENTRY["main.c<br/>WinMain entry point"]
+        SHELL["shell.c / shell.h<br/>Desktop shell + taskbar"]
+        WM["window_manager.c<br/>Tracks app windows,<br/>z-order, focus"]
+        EVENTS["events.c<br/>Message dispatcher,<br/>app routing"]
+        REGISTRY["app_registry.c<br/>Registers available apps,<br/>launches instances"]
+    end
+
+    subgraph APPS["Demo Apps"]
+        CLOCK["app_clock.c<br/>Analog clock<br/>(GDI drawing + timer)"]
+        EDITOR["app_editor.c<br/>Text editor<br/>(EDIT control wrapper)"]
+        CALC["app_calc.c<br/>Calculator<br/>(buttons + display)"]
+    end
+
+    ENTRY --> SHELL
+    SHELL --> WM
+    SHELL --> REGISTRY
+    SHELL --> EVENTS
+    WM --> EVENTS
+    REGISTRY --> CLOCK
+    REGISTRY --> EDITOR
+    REGISTRY --> CALC
+    EVENTS --> USER32
+    SHELL --> USER32
+    SHELL --> GDI32
+    CLOCK --> GDI32
+    CLOCK --> KERNEL32
+    EDITOR --> USER32
+    CALC --> USER32
+    CALC --> GDI32
+
+    classDef os fill:#2a3f5f,stroke:#1a2a3f,color:#fff
+    classDef core fill:#3f5f2a,stroke:#2a3f1a,color:#fff
+    classDef apps fill:#5f3f2a,stroke:#3f2a1a,color:#fff
+    class USER32,GDI32,KERNEL32 os
+    class ENTRY,SHELL,WM,EVENTS,REGISTRY core
+    class CLOCK,EDITOR,CALC apps
