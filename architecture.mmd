@@ -1,0 +1,9 @@
+flowchart TD
+  Client[Client Request] --> API[FastAPI /v1/chat/completions]
+  API --> Validate[Pydantic Schema]
+  Validate --> Safety[Safety + Limits]
+  Safety --> Processor[Text/Image/Audio Processor]
+  Processor --> Fusion[Modality Prefix Fusion]
+  Fusion --> Decoder[Transformer Decoder]
+  Decoder --> Guards[Logit + Numerical Guards]
+  Guards --> Output[Response + Telemetry]

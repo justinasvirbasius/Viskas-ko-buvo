@@ -1,0 +1,5 @@
+torch>=2.2
+fastapi>=0.113,<1.0
+uvicorn[standard]>=0.30
+pydantic>=2.7,<3.0
+pyyaml>=6.0

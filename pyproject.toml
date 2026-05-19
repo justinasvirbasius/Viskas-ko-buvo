@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mmllm-decree"
+version = "0.1.0"
+description = "Production-oriented multimodal LLM scaffold with modal decrees and safety gates."
+requires-python = ">=3.11"
+dependencies = [
+  "torch>=2.2",
+  "fastapi>=0.113,<1.0",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.7,<3.0",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27", "ruff>=0.6"]
+hf = ["transformers>=4.45", "accelerate>=0.34", "pillow>=10.0", "soundfile>=0.12"]
+vllm = ["vllm>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
