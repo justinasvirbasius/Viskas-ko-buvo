@@ -11,7 +11,7 @@ set OUT=MiniShell.exe
 set INC=/I include
 set DEFS=/DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN
 set CFLAGS=/nologo /W3 /O2 %DEFS% %INC%
-set LIBS=user32.lib gdi32.lib
+set LIBS=user32.lib gdi32.lib comctl32.lib shlwapi.lib comdlg32.lib advapi32.lib ws2_32.lib
 
 set SOURCES=^
   src\main.c ^
@@ -21,7 +21,21 @@ set SOURCES=^
   src\app_registry.c ^
   src\apps\app_clock.c ^
   src\apps\app_editor.c ^
-  src\apps\app_calc.c
+  src\apps\app_calc.c ^
+  src\apps\app_explorer.c ^
+  src\apps\app_paint.c ^
+  src\apps\app_terminal.c ^
+  src\apps\app_note.c ^
+  src\apps\app_sysmon.c ^
+  src\apps\app_color.c ^
+  src\apps\app_imageview.c ^
+  src\apps\app_snake.c ^
+  src\apps\app_fetcher.c ^
+  src\apps\app_procs.c ^
+  src\apps\app_settings.c ^
+  src\apps\app_clipboard.c ^
+  src\apps\app_beeper.c ^
+  src\apps\app_regtree.c
 
 cl %CFLAGS% %SOURCES% /Fe:%OUT% /link %LIBS%
 if errorlevel 1 (
