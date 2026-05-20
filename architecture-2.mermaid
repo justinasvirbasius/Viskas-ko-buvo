@@ -1,0 +1,118 @@
+graph TB
+    subgraph OS["Windows OS — libraries linked"]
+        USER32["user32"]
+        GDI32["gdi32"]
+        KERNEL32["kernel32"]
+        COMCTL32["comctl32"]
+        SHLWAPI["shlwapi"]
+        COMDLG32["comdlg32"]
+        ADVAPI32["advapi32"]
+        WS2_32["ws2_32"]
+        OPENGL32["opengl32"]
+        SHELL32["shell32"]
+        WICODECS["windowscodecs"]
+        OLE32["ole32"]
+    end
+
+    subgraph CORE["MiniShell Core"]
+        ENTRY["main.c"]
+        SHELL["shell.c"]
+        WM["window_manager.c"]
+        EVENTS["events.c"]
+        REGISTRY["app_registry.c"]
+    end
+
+    subgraph B1["Batch 1 — fundamentals"]
+        CLOCK["app_clock"]
+        EDITOR["app_editor"]
+        CALC["app_calc"]
+    end
+
+    subgraph B2["Batch 2 — controls & GDI"]
+        EXPLORER["app_explorer"]
+        PAINT["app_paint"]
+        TERMINAL["app_terminal"]
+        NOTE["app_note"]
+        SYSMON["app_sysmon"]
+        COLOR["app_color"]
+    end
+
+    subgraph B3["Batch 3 — system services"]
+        IMAGEVIEW["app_imageview"]
+        SNAKE["app_snake"]
+        FETCHER["app_fetcher"]
+        PROCS["app_procs"]
+        SETTINGS["app_settings"]
+        CLIPBOARD["app_clipboard"]
+        BEEPER["app_beeper"]
+        REGTREE["app_regtree"]
+    end
+
+    subgraph B4["Batch 4 — advanced surfaces"]
+        GLCUBE["app_glcube"]
+        HEXVIEW["app_hexview"]
+        CMDRUN["app_cmdrun"]
+        TRAY["app_tray"]
+        RICHDOC["app_richdoc"]
+        PNGVIEW["app_pngview"]
+        HOTKEY["app_hotkey"]
+        PROGRESS["app_progress"]
+    end
+
+    ENTRY --> SHELL
+    SHELL --> WM
+    SHELL --> REGISTRY
+    SHELL --> EVENTS
+    WM --> EVENTS
+
+    EVENTS --> USER32
+    SHELL --> GDI32
+
+    CLOCK --> GDI32
+    EDITOR --> USER32
+    CALC --> USER32
+    EXPLORER --> KERNEL32
+    EXPLORER --> SHLWAPI
+    PAINT --> GDI32
+    TERMINAL --> KERNEL32
+    NOTE --> USER32
+    SYSMON --> KERNEL32
+    SYSMON --> GDI32
+    COLOR --> COMCTL32
+    IMAGEVIEW --> COMDLG32
+    IMAGEVIEW --> GDI32
+    SNAKE --> KERNEL32
+    SNAKE --> GDI32
+    FETCHER --> WS2_32
+    FETCHER --> KERNEL32
+    PROCS --> COMCTL32
+    PROCS --> KERNEL32
+    SETTINGS --> COMCTL32
+    SETTINGS --> ADVAPI32
+    CLIPBOARD --> USER32
+    BEEPER --> KERNEL32
+    REGTREE --> COMCTL32
+    REGTREE --> ADVAPI32
+
+    GLCUBE --> OPENGL32
+    GLCUBE --> GDI32
+    HEXVIEW --> SHELL32
+    HEXVIEW --> KERNEL32
+    HEXVIEW --> COMDLG32
+    CMDRUN --> KERNEL32
+    TRAY --> SHELL32
+    TRAY --> USER32
+    RICHDOC --> COMCTL32
+    PNGVIEW --> WICODECS
+    PNGVIEW --> OLE32
+    PNGVIEW --> COMDLG32
+    HOTKEY --> USER32
+    PROGRESS --> COMCTL32
+    PROGRESS --> KERNEL32
+
+    classDef os fill:#2a3f5f,stroke:#1a2a3f,color:#fff
+    classDef core fill:#3f5f2a,stroke:#2a3f1a,color:#fff
+    classDef apps fill:#5f3f2a,stroke:#3f2a1a,color:#fff
+    class USER32,GDI32,KERNEL32,COMCTL32,SHLWAPI,COMDLG32,ADVAPI32,WS2_32,OPENGL32,SHELL32,WICODECS,OLE32 os
+    class ENTRY,SHELL,WM,EVENTS,REGISTRY core
+    class CLOCK,EDITOR,CALC,EXPLORER,PAINT,TERMINAL,NOTE,SYSMON,COLOR,IMAGEVIEW,SNAKE,FETCHER,PROCS,SETTINGS,CLIPBOARD,BEEPER,REGTREE,GLCUBE,HEXVIEW,CMDRUN,TRAY,RICHDOC,PNGVIEW,HOTKEY,PROGRESS apps
