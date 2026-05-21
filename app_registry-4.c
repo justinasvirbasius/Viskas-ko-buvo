@@ -1,0 +1,154 @@
+/*
+ * app_registry.c — Central registry of all built-in apps
+ */
+
+#include "shell.h"
+#include <stdio.h>
+
+/* Batch 1 — fundamentals */
+extern MsApp g_AppClock;
+extern MsApp g_AppEditor;
+extern MsApp g_AppCalc;
+/* Batch 2 — controls and GDI */
+extern MsApp g_AppExplorer;
+extern MsApp g_AppPaint;
+extern MsApp g_AppTerminal;
+extern MsApp g_AppNote;
+extern MsApp g_AppSysMon;
+extern MsApp g_AppColor;
+/* Batch 3 — system services */
+extern MsApp g_AppImageView;
+extern MsApp g_AppSnake;
+extern MsApp g_AppFetcher;
+extern MsApp g_AppProcs;
+extern MsApp g_AppSettings;
+extern MsApp g_AppClipboard;
+extern MsApp g_AppBeeper;
+extern MsApp g_AppRegTree;
+/* Batch 4 — advanced surfaces */
+extern MsApp g_AppGlCube;
+extern MsApp g_AppHexView;
+extern MsApp g_AppCmdRun;
+extern MsApp g_AppTray;
+extern MsApp g_AppRichDoc;
+extern MsApp g_AppPngView;
+extern MsApp g_AppHotKey;
+extern MsApp g_AppProgress;
+/* Batch 5 — modern stacks and IPC */
+extern MsApp g_AppD2D;
+extern MsApp g_AppHasher;
+extern MsApp g_AppHttpsGet;
+extern MsApp g_AppPipeChat;
+extern MsApp g_AppShared;
+extern MsApp g_AppServices;
+extern MsApp g_AppMonitors;
+extern MsApp g_AppGdiPlus;
+extern MsApp g_AppLayered;
+extern MsApp g_AppDateBook;
+extern MsApp g_AppWavPlay;
+/* Batch 6 — deeper-water APIs */
+extern MsApp g_AppMailSlot;
+extern MsApp g_AppAsync;
+extern MsApp g_AppRawInput;
+extern MsApp g_AppThreadPool;
+extern MsApp g_AppDpiAware;
+extern MsApp g_AppEventLog;
+extern MsApp g_AppCounters;
+extern MsApp g_AppShapedWin;
+extern MsApp g_AppAtoms;
+
+#define MAX_APPS 64
+static MsApp *g_apps[MAX_APPS];
+static int    g_app_count = 0;
+
+void Registry_Init(void)
+{
+    g_app_count = 0;
+    g_apps[g_app_count++] = &g_AppClock;
+    g_apps[g_app_count++] = &g_AppEditor;
+    g_apps[g_app_count++] = &g_AppCalc;
+    g_apps[g_app_count++] = &g_AppExplorer;
+    g_apps[g_app_count++] = &g_AppPaint;
+    g_apps[g_app_count++] = &g_AppTerminal;
+    g_apps[g_app_count++] = &g_AppNote;
+    g_apps[g_app_count++] = &g_AppSysMon;
+    g_apps[g_app_count++] = &g_AppColor;
+    g_apps[g_app_count++] = &g_AppImageView;
+    g_apps[g_app_count++] = &g_AppSnake;
+    g_apps[g_app_count++] = &g_AppFetcher;
+    g_apps[g_app_count++] = &g_AppProcs;
+    g_apps[g_app_count++] = &g_AppSettings;
+    g_apps[g_app_count++] = &g_AppClipboard;
+    g_apps[g_app_count++] = &g_AppBeeper;
+    g_apps[g_app_count++] = &g_AppRegTree;
+    g_apps[g_app_count++] = &g_AppGlCube;
+    g_apps[g_app_count++] = &g_AppHexView;
+    g_apps[g_app_count++] = &g_AppCmdRun;
+    g_apps[g_app_count++] = &g_AppTray;
+    g_apps[g_app_count++] = &g_AppRichDoc;
+    g_apps[g_app_count++] = &g_AppPngView;
+    g_apps[g_app_count++] = &g_AppHotKey;
+    g_apps[g_app_count++] = &g_AppProgress;
+    g_apps[g_app_count++] = &g_AppD2D;
+    g_apps[g_app_count++] = &g_AppHasher;
+    g_apps[g_app_count++] = &g_AppHttpsGet;
+    g_apps[g_app_count++] = &g_AppPipeChat;
+    g_apps[g_app_count++] = &g_AppShared;
+    g_apps[g_app_count++] = &g_AppServices;
+    g_apps[g_app_count++] = &g_AppMonitors;
+    g_apps[g_app_count++] = &g_AppGdiPlus;
+    g_apps[g_app_count++] = &g_AppLayered;
+    g_apps[g_app_count++] = &g_AppDateBook;
+    g_apps[g_app_count++] = &g_AppWavPlay;
+    g_apps[g_app_count++] = &g_AppMailSlot;
+    g_apps[g_app_count++] = &g_AppAsync;
+    g_apps[g_app_count++] = &g_AppRawInput;
+    g_apps[g_app_count++] = &g_AppThreadPool;
+    g_apps[g_app_count++] = &g_AppDpiAware;
+    g_apps[g_app_count++] = &g_AppEventLog;
+    g_apps[g_app_count++] = &g_AppCounters;
+    g_apps[g_app_count++] = &g_AppShapedWin;
+    g_apps[g_app_count++] = &g_AppAtoms;
+}
+
+int Registry_Count(void)
+{
+    return g_app_count;
+}
+
+MsApp *Registry_GetAt(int index)
+{
+    if (index < 0 || index >= g_app_count) return NULL;
+    return g_apps[index];
+}
+
+void Registry_Launch(int index, HWND desktop)
+{
+    MsApp *app;
+    RECT   rc;
+    int    x, y, w, h, offset;
+    HWND   hwnd;
+    MsAppWindow *aw;
+
+    app = Registry_GetAt(index);
+    if (!app) return;
+
+    GetClientRect(desktop, &rc);
+    w = app->default_w;
+    h = app->default_h;
+    offset = WM_Count() * 24;
+    x = 80 + offset;
+    y = 60 + offset;
+
+    hwnd = app->create(desktop, x, y, w, h, app);
+    if (!hwnd) return;
+
+    aw = WM_Register(hwnd, app, app->title);
+    if (aw) {
+        ShowWindow(hwnd, SW_SHOW);
+        UpdateWindow(hwnd);
+        SetForegroundWindow(hwnd);
+    } else {
+        DestroyWindow(hwnd);
+    }
+}
