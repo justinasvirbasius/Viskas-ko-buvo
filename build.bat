@@ -11,7 +11,7 @@ set OUT=MiniShell.exe
 set INC=/I include
 set DEFS=/DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN /D_WIN32_WINNT=0x0A00 /DWINVER=0x0A00
 set CFLAGS=/nologo /W3 /O2 %DEFS% %INC%
-set LIBS=user32.lib gdi32.lib comctl32.lib shlwapi.lib comdlg32.lib advapi32.lib ws2_32.lib opengl32.lib shell32.lib windowscodecs.lib ole32.lib uuid.lib d2d1.lib dwrite.lib bcrypt.lib winhttp.lib gdiplus.lib winmm.lib pdh.lib d3d11.lib secur32.lib netapi32.lib
+set LIBS=user32.lib gdi32.lib comctl32.lib shlwapi.lib comdlg32.lib advapi32.lib ws2_32.lib opengl32.lib shell32.lib windowscodecs.lib ole32.lib uuid.lib d2d1.lib dwrite.lib bcrypt.lib winhttp.lib gdiplus.lib winmm.lib pdh.lib d3d11.lib secur32.lib netapi32.lib cabinet.lib wtsapi32.lib
 
 set SOURCES=^
   src\main.c ^
@@ -73,7 +73,17 @@ set SOURCES=^
   src\apps\app_console.c ^
   src\apps\app_windows.c ^
   src\apps\app_power.c ^
-  src\apps\app_netinfo.c
+  src\apps\app_netinfo.c ^
+  src\apps\app_aescipher.c ^
+  src\apps\app_compressor.c ^
+  src\apps\app_metafile.c ^
+  src\apps\app_sessions.c ^
+  src\apps\app_fileops.c ^
+  src\apps\app_locales.c ^
+  src\apps\app_modules.c ^
+  src\apps\app_broadcast.c ^
+  src\apps\app_dibclip.c ^
+  src\apps\app_sysspec.c
 
 cl %CFLAGS% %SOURCES% /Fe:%OUT% /link %LIBS%
 if errorlevel 1 (
