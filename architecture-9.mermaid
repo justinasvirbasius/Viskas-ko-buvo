@@ -1,0 +1,293 @@
+graph TB
+    subgraph OS["Windows OS — libraries linked (44)"]
+        USER32["user32"]
+        GDI32["gdi32"]
+        KERNEL32["kernel32"]
+        COMCTL32["comctl32"]
+        OLE32["ole32"]
+        OLEAUT32["oleaut32"]
+        SHELL32["shell32"]
+        WICODECS["windowscodecs"]
+        WS2_32["ws2_32"]
+        OPENGL32["opengl32"]
+        D2D1["d2d1"]
+        BCRYPT["bcrypt"]
+        WINHTTP["winhttp"]
+        GDIPLUS["gdiplus"]
+        WINMM["winmm"]
+        PDH["pdh"]
+        D3D11["d3d11"]
+        SECUR32["secur32"]
+        WTSAPI32["wtsapi32"]
+        IPHLPAPI["iphlpapi"]
+        SETUPAPI["setupapi"]
+        CRYPT32["crypt32"]
+        DWMAPI["dwmapi"]
+        WINSPOOL["winspool"]
+        PROPSYS["propsys"]
+        MFPLAT["mfplat"]
+        MFREADWRITE["mfreadwrite"]
+        WBEMUUID["wbemuuid"]
+        RSTRTMGR["rstrtmgr"]
+        AVRT["avrt (LoadLibrary)"]
+        CABINET["cabinet"]
+        ADVAPI32["advapi32"]
+        NETAPI32["netapi32"]
+        SHLWAPI["shlwapi"]
+        COMDLG32["comdlg32"]
+        DWRITE["dwrite"]
+        PSAPI["psapi"]
+        MSI["msi"]
+        WLANAPI["wlanapi"]
+        POWRPROF["powrprof"]
+        UXTHEME["uxtheme"]
+        IMAGEHLP["imagehlp"]
+        BITS["bits"]
+        DXGI["dxgi"]
+        D3D12LIB["d3d12 (LoadLibrary)"]
+    end
+
+    subgraph CORE["MiniShell Core"]
+        ENTRY["main.c"]
+        SHELL["shell.c"]
+        WM["window_manager.c"]
+        EVENTS["events.c — paginated taskbar"]
+        REGISTRY["app_registry.c"]
+    end
+
+    subgraph B1["Batch 1 — fundamentals"]
+        CLOCK["Clock"]
+        EDITOR["Editor"]
+        CALC["Calc"]
+    end
+    subgraph B2["Batch 2 — controls & GDI"]
+        EXPLORER["Explorer"]
+        PAINT["Paint"]
+        TERMINAL["Terminal"]
+        NOTE["Note"]
+        SYSMON["SysMon"]
+        COLOR["Color"]
+    end
+    subgraph B3["Batch 3 — system services"]
+        IMAGEVIEW["ImageView"]
+        SNAKE["Snake"]
+        FETCHER["Fetch"]
+        PROCS["Procs"]
+        SETTINGS["Settings"]
+        CLIPBOARD["Clipboard"]
+        BEEPER["Beeper"]
+        REGTREE["RegTree"]
+    end
+    subgraph B4["Batch 4 — advanced surfaces"]
+        GLCUBE["GLCube"]
+        HEXVIEW["HexView"]
+        CMDRUN["CmdRun"]
+        TRAY["Tray"]
+        RICHDOC["RichDoc"]
+        PNGVIEW["PngView"]
+        HOTKEY["HotKey"]
+        PROGRESS["Progress"]
+    end
+    subgraph B5["Batch 5 — modern stacks & IPC"]
+        D2D["D2D"]
+        HASHER["Hasher"]
+        HTTPSGET["HttpsGet"]
+        PIPECHAT["PipeChat"]
+        SHARED["Shared"]
+        SERVICES["Services"]
+        MONITORS["Monitors"]
+        GDIP["GdiPlus"]
+        LAYERED["Layered"]
+        DATEBOOK["DateBook"]
+        WAVPLAY["WavPlay"]
+    end
+    subgraph B6["Batch 6 — deeper-water APIs"]
+        MAILSLOT["MailSlot"]
+        ASYNC["Async"]
+        RAWINPUT["RawInput"]
+        THREADPOOL["ThreadPool"]
+        DPIAWARE["DpiAware"]
+        EVENTLOG["EventLog"]
+        COUNTERS["Counters"]
+        SHAPEDWIN["ShapedWin"]
+        ATOMS["Atoms"]
+    end
+    subgraph B7["Batch 7 — multimedia, dialogs, misc"]
+        D3DAPP["D3D11"]
+        WASAPIOUT["WasapiOut"]
+        MICLEVEL["MicLevel"]
+        TASKDLG["TaskDlg"]
+        OPENDLG["OpenDlg"]
+        SENDIN["SendIn"]
+        CONSOLE["Console"]
+        WINDOWS["Windows"]
+        POWER["Power"]
+        NETINFO["NetInfo"]
+    end
+    subgraph B8["Batch 8 — system, crypto, shell"]
+        AESCIPHER["AesCipher"]
+        COMPRESSOR["Compress"]
+        METAFILE["MetaFile"]
+        SESSIONS["Sessions"]
+        FILEOPS["FileOps"]
+        LOCALES["Locales"]
+        MODULES["Modules"]
+        BROADCAST["Broadcast"]
+        DIBCLIP["DibClip"]
+        SYSSPEC["SysSpec"]
+    end
+    subgraph B9["Batch 9 — net, devices, shell, identity"]
+        TCPLIST["TcpList"]
+        NETADAPT["NetAdapt"]
+        DEVICES["Devices"]
+        HOOKKBD["HookKbd"]
+        DRAGSRC["DragSrc"]
+        DPAPI["Dpapi"]
+        DIRWATCH["DirWatch"]
+        SHELLLNK["ShellLnk"]
+        FONTS["Fonts"]
+        DWMATTR["DwmAttr"]
+    end
+    subgraph B10["Batch 10 — security, hardware, GDI, SEH"]
+        TOKENINFO["TokenInfo"]
+        JUMPLIST["JumpList"]
+        TOPOLOGY["Topology"]
+        PRINTENUM["PrintEnum"]
+        INIFILE["IniFile"]
+        GUIDGEN["GuidGen"]
+        CURVES["Curves"]
+        NETWATCH["NetWatch"]
+        SEHPROBE["SehProbe"]
+        DIBDRAW["DibDraw"]
+    end
+    subgraph B11["Batch 11 — UI events, shell modernity, sessions, encoding"]
+        WINEVENT["WinEvent"]
+        TASKBAR3["TaskBar3"]
+        PERPIXALPHA["PerPixAlpha"]
+        SHELLPROPS["ShellProps"]
+        KEYMAP["KeyMap"]
+        TIMEZONES["TimeZones"]
+        DEVNOTIFY["DevNotify"]
+        SESSHOOK["SessHook"]
+        WSAEVENT["WsaEvent"]
+        ENCODINGS["Encodings"]
+    end
+    subgraph B12["Batch 12 — MF, WMI, UIA, OLE tgt, MMCSS, certs, RM"]
+        MEDIAFNDR["MediaFndr"]
+        WMIQUERY["WmiQuery"]
+        UIAUTO["UIAuto"]
+        PASTETGT["PasteTgt"]
+        OLDWATCH["OldWatch"]
+        MMCSSAUD["MmcssAud"]
+        SAVEDLG["SaveDlg"]
+        CERTSTORE["CertStore"]
+        RSTRTMGRAPP["RstrtMgr"]
+        CLIPMON["ClipMon"]
+    end
+    subgraph B13["Batch 13 — process, install/network metadata, themes, PE, COM ROT"]
+        PSAPIAPP["Psapi"]
+        MSILIST["MsiList"]
+        SYMLINK["Symlink"]
+        GUIINFO["GuiInfo"]
+        SHELLWINS["ShellWins"]
+        WLANINFO["WlanInfo"]
+        POWERSCH["PowerSch"]
+        UXTHEMEAPP["UxTheme"]
+        PEINFO["PeInfo"]
+        ROTLIST["RotList"]
+    end
+    subgraph B14["Batch 14 — BITS, D3D12, vbl, print events, raw sockets, thread naming, ACLs, touch, privileges, restart"]
+        BITSTASK["BitsTask"]
+        D3D12APP["D3D12"]
+        DXGIVBL["DXGIVbl"]
+        PRINTHOOK["PrintHook"]
+        WINSOCK2["WinSock2"]
+        SETTHRDESC["SetThrDesc"]
+        DACLOOKUP["DacLookup"]
+        TOUCHINJ["TouchInj"]
+        ADJPRIV["AdjPriv"]
+        APPRESTART["AppRestart"]
+    end
+
+    ENTRY --> SHELL
+    SHELL --> WM
+    SHELL --> REGISTRY
+    SHELL --> EVENTS
+    WM --> EVENTS
+
+    GLCUBE --> OPENGL32
+    PNGVIEW --> WICODECS
+    D2D --> D2D1
+    HASHER --> BCRYPT
+    HTTPSGET --> WINHTTP
+    GDIP --> GDIPLUS
+    WAVPLAY --> WINMM
+    COUNTERS --> PDH
+    D3DAPP --> D3D11
+    WASAPIOUT --> OLE32
+    NETINFO --> SECUR32
+    COMPRESSOR --> CABINET
+    SESSIONS --> WTSAPI32
+    TCPLIST --> IPHLPAPI
+    NETADAPT --> IPHLPAPI
+    DEVICES --> SETUPAPI
+    DPAPI --> CRYPT32
+    SHELLLNK --> SHELL32
+    DWMATTR --> DWMAPI
+    TOKENINFO --> ADVAPI32
+    JUMPLIST --> SHELL32
+    PRINTENUM --> WINSPOOL
+    GUIDGEN --> OLE32
+    CURVES --> GDI32
+    NETWATCH --> IPHLPAPI
+    DIBDRAW --> GDI32
+    WINEVENT --> USER32
+    TASKBAR3 --> SHELL32
+    PERPIXALPHA --> USER32
+    SHELLPROPS --> PROPSYS
+    KEYMAP --> USER32
+    DEVNOTIFY --> USER32
+    SESSHOOK --> WTSAPI32
+    WSAEVENT --> WS2_32
+
+    MEDIAFNDR --> MFPLAT
+    MEDIAFNDR --> MFREADWRITE
+    WMIQUERY --> WBEMUUID
+    WMIQUERY --> OLEAUT32
+    UIAUTO --> OLE32
+    PASTETGT --> OLE32
+    MMCSSAUD --> AVRT
+    SAVEDLG --> SHELL32
+    CERTSTORE --> CRYPT32
+    RSTRTMGRAPP --> RSTRTMGR
+    CLIPMON --> USER32
+
+    PSAPIAPP --> PSAPI
+    MSILIST --> MSI
+    SYMLINK --> KERNEL32
+    GUIINFO --> USER32
+    SHELLWINS --> OLE32
+    WLANINFO --> WLANAPI
+    POWERSCH --> POWRPROF
+    UXTHEMEAPP --> UXTHEME
+    PEINFO --> IMAGEHLP
+    ROTLIST --> OLE32
+
+    BITSTASK --> BITS
+    BITSTASK --> OLE32
+    D3D12APP --> D3D12LIB
+    D3D12APP --> DXGI
+    DXGIVBL --> DXGI
+    PRINTHOOK --> WINSPOOL
+    WINSOCK2 --> WS2_32
+    SETTHRDESC --> KERNEL32
+    DACLOOKUP --> ADVAPI32
+    TOUCHINJ --> USER32
+    ADJPRIV --> ADVAPI32
+    APPRESTART --> KERNEL32
+
+    classDef os fill:#2a3f5f,stroke:#1a2a3f,color:#fff
+    classDef core fill:#3f5f2a,stroke:#2a3f1a,color:#fff
+    classDef apps fill:#5f3f2a,stroke:#3f2a1a,color:#fff
+    class USER32,GDI32,KERNEL32,COMCTL32,OLE32,OLEAUT32,SHELL32,WICODECS,WS2_32,OPENGL32,D2D1,BCRYPT,WINHTTP,GDIPLUS,WINMM,PDH,D3D11,SECUR32,WTSAPI32,IPHLPAPI,SETUPAPI,CRYPT32,DWMAPI,WINSPOOL,PROPSYS,MFPLAT,MFREADWRITE,WBEMUUID,RSTRTMGR,AVRT,CABINET,ADVAPI32,NETAPI32,SHLWAPI,COMDLG32,DWRITE,PSAPI,MSI,WLANAPI,POWRPROF,UXTHEME,IMAGEHLP,BITS,DXGI,D3D12LIB os
+    class ENTRY,SHELL,WM,EVENTS,REGISTRY core
