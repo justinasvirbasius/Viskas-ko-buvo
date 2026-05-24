@@ -1,0 +1,130 @@
+%% MiniShell architecture — 146 apps across 16 batches, 49 linked libs
+graph TB
+    subgraph Entry["Process entry"]
+        MAIN[main.c<br/>wWinMain]
+        SHELL[shell.c<br/>desktop class]
+        EVENTS[events.c<br/>paginated taskbar]
+        WM[window_manager.c<br/>HWND table]
+        REG[app_registry.c<br/>146 apps]
+    end
+
+    MAIN --> SHELL
+    SHELL --> EVENTS
+    EVENTS --> WM
+    EVENTS --> REG
+
+    subgraph B1to4["Batches 1–4"]
+        B1_4[Clock · Editor · Calc · Explorer · Paint · Terminal · Note · SysMon · Color · ImageView · Snake · Fetcher · Procs · Settings · Clipboard · Beeper · RegTree · GlCube · HexView · CmdRun · Tray · RichDoc · PngView · HotKey · Progress]
+    end
+
+    subgraph B5to8["Batches 5–8"]
+        B5_8[D2D · Hasher · HttpsGet · PipeChat · Shared · Services · Monitors · GdiPlus · Layered · DateBook · WavPlay · MailSlot · Async · RawInput · ThreadPool · DpiAware · EventLog · Counters · ShapedWin · Atoms · D3D11 · WasapiOut · MicLevel · TaskDlg · OpenDlg · SendIn · Console · Windows · Power · NetInfo · AesCipher · Compressor · MetaFile · Sessions · FileOps · Locales · Modules · Broadcast · DibClip · SysSpec]
+    end
+
+    subgraph B9to12["Batches 9–12"]
+        B9_12[TcpList · NetAdapt · Devices · HookKbd · DragSrc · Dpapi · DirWatch · ShellLnk · Fonts · DwmAttr · TokenInfo · JumpList · Topology · PrintEnum · IniFile · GuidGen · Curves · NetWatch · SehProbe · DibDraw · WinEvent · TaskBar3 · PerPixAlpha · ShellProps · KeyMap · TimeZones · DevNotify · SessHook · WsaEvent · Encodings · MediaFndr · WmiQuery · UIAuto · PasteTgt · OldWatch · MmcssAud · SaveDlg · CertStore · RstrtMgr · ClipMon]
+    end
+
+    subgraph B13to15["Batches 13–15"]
+        B13_15[Psapi · MsiList · Symlink · GuiInfo · ShellWins · WlanInfo · PowerSch · UxTheme · PeInfo · RotList · BitsTask · D3D12 · DXGIVbl · PrintHook · WinSock2 · SetThrDesc · DacLookup · TouchInj · AdjPriv · AppRestart · WsSocket · DComp · Magnify · Bluetooth · EfsCrypt · XmlLite · SetupApiDrv · SmartCard · GpuPref · PtrInput · AppCntr]
+    end
+
+    subgraph B16["Batch 16 (newest)"]
+        ANIMGR[AniMgr<br/>IUIAnimationManager]
+        XAUDIO[XAudio2<br/>source voice + buffer]
+        SENSORAPP[Sensor<br/>ISensorManager]
+        HIDAPP[Hid<br/>HidD/HidP enum]
+        FWPOLAPP[FwPolicy<br/>INetFwPolicy2]
+        TXREGAPP[TxReg<br/>KTM + RegCreateKeyTransactedW]
+        INKAPP[InkReco<br/>IInkRecognizers]
+        PROCMIT[ProcMit<br/>GetProcessMitigationPolicy]
+        D2DEFFAPP[D2dEff<br/>ID2D1Effect graph]
+        AUDIOSESS[AudioSess<br/>IAudioSessionManager2]
+    end
+
+    REG --> B1to4
+    REG --> B5to8
+    REG --> B9to12
+    REG --> B13to15
+    REG --> B16
+
+    subgraph OS["Windows OS subsystems (49 linked libs + 8+ dyn-loaded)"]
+        USER[user32]
+        GDI[gdi32]
+        COMCTL[comctl32]
+        SHLWAPI[shlwapi]
+        COMDLG[comdlg32]
+        ADVAPI[advapi32]
+        WS2[ws2_32]
+        OPENGL[opengl32]
+        SHELL32[shell32]
+        WIC[windowscodecs]
+        OLE[ole32]
+        OLEAUT[oleaut32]
+        UUID[uuid]
+        D2D[d2d1]
+        DWRITE[dwrite]
+        BCRYPT[bcrypt]
+        WINHTTP[winhttp]
+        GDIP[gdiplus]
+        WINMM[winmm]
+        PDH[pdh]
+        D3D11LIB[d3d11]
+        SECUR[secur32]
+        NETAPI[netapi32]
+        CAB[cabinet]
+        WTS[wtsapi32]
+        IPH[iphlpapi]
+        SETUP[setupapi]
+        CRYPT32[crypt32]
+        DWM[dwmapi]
+        WINSPOOL[winspool]
+        PROPSYS[propsys]
+        MFPLAT[mfplat]
+        MFRR[mfreadwrite]
+        MFUUID[mfuuid]
+        WBEM[wbemuuid]
+        RSTRT[rstrtmgr]
+        PSAPILIB[psapi]
+        MSILIB[msi]
+        WLAN[wlanapi]
+        POWR[powrprof]
+        UXTH[uxtheme]
+        IMHLP[imagehlp]
+        BITSLIB[bits]
+        DXGILIB[dxgi]
+        XMLLITELIB[xmllite]
+        WINSCARD[winscard]
+        SENSORSAPILIB[sensorsapi]
+        KTMW32[ktmw32]
+        HIDLIB[hid]
+        XAUDIO_DLL[xaudio2_9.dll<br/>LoadLibrary]
+        HID_DLL[hid.dll<br/>LoadLibrary]
+        K32_DLL[kernel32.dll<br/>LoadLibrary]
+    end
+
+    ANIMGR    --> OLE
+    ANIMGR    --> UUID
+    XAUDIO    --> XAUDIO_DLL
+    SENSORAPP --> SENSORSAPILIB
+    SENSORAPP --> OLE
+    SENSORAPP --> OLEAUT
+    HIDAPP    --> SETUP
+    HIDAPP    --> HID_DLL
+    FWPOLAPP  --> OLE
+    FWPOLAPP  --> OLEAUT
+    TXREGAPP  --> ADVAPI
+    TXREGAPP  --> KTMW32
+    INKAPP    --> OLE
+    INKAPP    --> OLEAUT
+    PROCMIT   --> K32_DLL
+    D2DEFFAPP --> D2D
+    D2DEFFAPP --> D3D11LIB
+    D2DEFFAPP --> DXGILIB
+    AUDIOSESS --> OLE
+
+    B1to4   --> USER
+    B5to8   --> USER
+    B9to12  --> USER
+    B13to15 --> USER
+    B16     --> USER
