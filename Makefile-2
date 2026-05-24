@@ -1,0 +1,53 @@
+# UFFS — Universal Fast File System (skeleton)
+#
+# Builds five binaries:
+#   uffs              : in-memory single-process FUSE filesystem
+#   uffs_persist      : single-process, file-backed (persistent)
+#   uffs_core         : RPC server, in-memory storage
+#   uffs_node         : FUSE-facing RPC client
+#   uffs_core_persist : RPC server, persistent + multi-node
+
+CC      := cc
+CFLAGS  := -Wall -Wextra -O2 -D_FILE_OFFSET_BITS=64
+FUSE_CFLAGS := $(shell pkg-config fuse3 --cflags 2>/dev/null)
+FUSE_LIBS   := $(shell pkg-config fuse3 --libs   2>/dev/null)
+
+ifeq ($(FUSE_CFLAGS),)
+$(warning fuse3 not found via pkg-config; falling back to -lfuse)
+FUSE_CFLAGS := -DFUSE_USE_VERSION=31
+FUSE_LIBS   := -lfuse
+endif
+
+ALL := uffs uffs_persist uffs_core uffs_node uffs_core_persist uffs_blocks
+
+all: $(ALL)
+
+uffs: uffs.c
+	$(CC) $(CFLAGS) $(FUSE_CFLAGS) $< -o $@ $(FUSE_LIBS)
+
+uffs_persist: uffs_persist.c
+	$(CC) $(CFLAGS) $(FUSE_CFLAGS) $< -o $@ $(FUSE_LIBS)
+
+uffs_node: uffs_node.c uffs_proto.h
+	$(CC) $(CFLAGS) $(FUSE_CFLAGS) uffs_node.c -o $@ $(FUSE_LIBS) -lpthread
+
+uffs_core: uffs_core.c uffs_proto.h
+	$(CC) $(CFLAGS) uffs_core.c -o $@
+
+uffs_core_persist: uffs_core_persist.c uffs_proto.h
+	$(CC) $(CFLAGS) uffs_core_persist.c -o $@ -lpthread
+
+uffs_blocks: uffs_blocks.c
+	$(CC) $(CFLAGS) $(FUSE_CFLAGS) $< -o $@ $(FUSE_LIBS)
+
+# Storage-layer smoke test for uffs_blocks. No FUSE required.
+uffs_blocks_test: uffs_blocks_test.c
+	$(CC) $(CFLAGS) $< -o $@
+
+test: uffs_blocks_test
+	./uffs_blocks_test /tmp/uffs_smoketest.img
+
+clean:
+	rm -f $(ALL) uffs_blocks_test
+
+.PHONY: all clean test
