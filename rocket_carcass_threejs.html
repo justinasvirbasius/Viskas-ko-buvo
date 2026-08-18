@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Rocket Carcass — Three.js Momentum Scroller</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#071019;color:#eef6ff;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}
+  canvas{display:block}
+  #hud{position:fixed;inset:0;pointer-events:none}
+  .panel{position:absolute;left:18px;top:18px;width:min(380px,calc(100vw - 36px));padding:14px 16px;border:1px solid #ffffff24;background:#08111dcc;backdrop-filter:blur(12px);border-radius:16px;box-shadow:0 20px 60px #0008}
+  h1{font-size:16px;margin:0 0 5px;letter-spacing:.08em;text-transform:uppercase}
+  .sub{font-size:11px;opacity:.68;line-height:1.4}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:11px}
+  .stat{background:#ffffff0a;border:1px solid #ffffff12;border-radius:10px;padding:8px}
+  .stat b{font-size:10px;opacity:.6;display:block;text-transform:uppercase;letter-spacing:.08em}
+  .stat span{font-size:15px;font-variant-numeric:tabular-nums}
+  .bar{height:6px;background:#ffffff12;border-radius:99px;overflow:hidden;margin-top:4px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#59e3ff,#8dff85);width:100%}
+  #mission{position:absolute;right:18px;top:18px;max-width:330px;padding:12px 14px;border-radius:14px;border:1px solid #ffffff1f;background:#08111dbb;font-size:12px;line-height:1.5}
+  #center{position:absolute;left:50%;top:20%;transform:translateX(-50%);text-align:center;font-weight:800;font-size:clamp(20px,4vw,46px);letter-spacing:.12em;text-transform:uppercase;text-shadow:0 5px 30px #000;opacity:0;transition:.3s}
+  #controls{position:absolute;left:18px;bottom:18px;font-size:11px;opacity:.76;background:#07101abc;border:1px solid #ffffff18;border-radius:12px;padding:10px 12px;line-height:1.7}
+  #minimap{position:absolute;right:18px;bottom:18px;width:250px;height:64px;border-radius:12px;border:1px solid #ffffff1f;background:#07101acc;overflow:hidden}
+  #miniTrack{position:absolute;left:8px;right:8px;top:31px;height:2px;background:#ffffff2c}
+  #miniDot{position:absolute;top:25px;width:12px;height:12px;border-radius:50%;background:#79e9ff;box-shadow:0 0 14px #79e9ff}
+  .padMark{position:absolute;top:20px;width:3px;height:24px;background:#9aff8e88}
+  #touch{position:absolute;inset:0;pointer-events:none}
+  .touchBtn{pointer-events:auto;position:absolute;width:70px;height:70px;border-radius:50%;border:1px solid #ffffff28;background:#ffffff12;color:white;font-weight:700;display:grid;place-items:center;user-select:none;-webkit-user-select:none;touch-action:none}
+  #left{left:18px;bottom:110px} #right{left:98px;bottom:110px}
+  #thrust{right:20px;bottom:110px;width:88px;height:88px;background:#38d8ff22}
+  #brake{right:118px;bottom:120px}
+  @media (min-width:850px){#touch{display:none}}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="panel">
+    <h1>ROCKET CARCASS // MOMENTUM COURSE</h1>
+    <div class="sub">A 2.5D precision scroller: conserve velocity, rotate under inertia, clear terrain, deploy legs and settle onto green pads.</div>
+    <div class="grid">
+      <div class="stat"><b>Speed</b><span id="speed">0.0</span></div>
+      <div class="stat"><b>V-Speed</b><span id="vspeed">0.0</span></div>
+      <div class="stat"><b>Angle</b><span id="angle">0°</span></div>
+      <div class="stat"><b>Fuel</b><span id="fuel">100%</span><div class="bar"><i id="fuelBar"></i></div></div>
+      <div class="stat"><b>Hull</b><span id="hull">100%</span></div>
+      <div class="stat"><b>Pad</b><span id="pad">1 / 4</span></div>
+    </div>
+  </div>
+  <div id="mission"><b>Mission:</b> fly right through the obstacle corridor. Landing is safe only with low vertical speed, low lateral drift, and an upright hull. <b>L</b> toggles landing legs.</div>
+  <div id="center"></div>
+  <div id="controls">A / D or ← / → — rotate<br>W / ↑ / Space — main thrust<br>S / ↓ — retro brake<br>L — landing legs &nbsp; R — restart</div>
+  <div id="minimap"><div id="miniTrack"></div><div id="miniDot"></div></div>
+  <div id="touch">
+    <div class="touchBtn" id="left">↺</div><div class="touchBtn" id="right">↻</div>
+    <div class="touchBtn" id="thrust">THRUST</div><div class="touchBtn" id="brake">BRAKE</div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x071019);
+scene.fog = new THREE.FogExp2(0x071019, 0.008);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+const camera = new THREE.PerspectiveCamera(54, innerWidth/innerHeight, .1, 900);
+camera.position.set(0,12,38);
+
+scene.add(new THREE.HemisphereLight(0xa8d8ff,0x17200e,2.2));
+const sun = new THREE.DirectionalLight(0xffffff,3.5);
+sun.position.set(20,45,25); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048); scene.add(sun);
+
+const world = new THREE.Group(); scene.add(world);
+const solids = [], pads = [];
+const WORLD_LENGTH = 620;
+
+const mat = (c,rough=.8,metal=.05)=>new THREE.MeshStandardMaterial({color:c,roughness:rough,metalness:metal});
+const rockMat=mat(0x253038,.92), dirtMat=mat(0x4c3527,.96), grassMat=mat(0x577a45,.85);
+const hazardMat=new THREE.MeshStandardMaterial({color:0xff7048,emissive:0x6b1808,emissiveIntensity:1.2});
+const padMat=new THREE.MeshStandardMaterial({color:0x8aff8e,emissive:0x1d5a20,emissiveIntensity:1.2,metalness:.3,roughness:.4});
+
+function box(x,y,w,h,d=8,material=rockMat, collision=true){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+  m.position.set(x,y,-1); m.castShadow=m.receiveShadow=true; world.add(m);
+  if(collision) solids.push({x:x-w/2,y:y-h/2,w,h,mesh:m});
+  return m;
+}
+function pad(x,y,w=12){
+  box(x,y-.75,w,1.5,8,padMat,true);
+  const p={x:x-w/2,y:y,w}; pads.push(p);
+  for(const dx of [-w*.38,w*.38]){
+    const b=new THREE.Mesh(new THREE.BoxGeometry(.4,2.4,.4),padMat); b.position.set(x+dx,y+1.2,2); world.add(b);
+  }
+}
+function spike(x,y,flip=false){
+  const g=new THREE.ConeGeometry(1.2,3.5,4); const m=new THREE.Mesh(g,hazardMat);
+  m.rotation.z=flip?Math.PI:0; m.position.set(x,y+(flip?-1.7:1.7),0); world.add(m);
+  solids.push({x:x-1.15,y:flip?y-3.5:y,w:2.3,h:3.5,hazard:true,mesh:m});
+}
+
+// layered Terraria-ish terrain
+box(80,-11,190,14,12,dirtMat);
+box(220,-14,95,12,12,dirtMat);
+box(370,-12,150,15,12,dirtMat);
+box(530,-14,180,12,12,dirtMat);
+for(let x=-10;x<WORLD_LENGTH;x+=5){
+  if((x>170&&x<200)||(x>265&&x<325)||(x>438&&x<468)) continue;
+  const y = x<170?-3.5 : x<265?-8 : x<438?-4.5 : -8;
+  const g=box(x,y,5,.8,12,grassMat,true);
+}
+
+// caverns / platforms / gates
+box(48,7,16,3); box(88,13,22,3); box(128,4,12,15);
+box(188,9,5,25); box(205,19,28,3); box(242,8,6,22);
+box(292,5,26,3); box(332,14,7,25); box(360,25,35,3);
+box(410,8,22,3); box(452,14,6,28); box(485,2,18,3);
+box(520,11,38,3); box(574,5,7,20);
+for(let i=0;i<10;i++) spike(105+i*7,-2.7);
+for(let i=0;i<6;i++) spike(214+i*7,20.5,true);
+for(let i=0;i<8;i++) spike(345+i*7,-3.7);
+for(let i=0;i<8;i++) spike(490+i*7,-7.7);
+
+// landing sequence
+pad(156,-2.7,14); pad(278,-7.2,15); pad(432,-3.7,16); pad(600,-7.2,18);
+
+// decorative parallax stars / rocks
+const starGeo=new THREE.BufferGeometry(); const pts=[];
+for(let i=0;i<900;i++) pts.push((Math.random()-.05)*WORLD_LENGTH,Math.random()*100-25,-30-Math.random()*120);
+starGeo.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+world.add(new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xaad7ff,size:.18,transparent:true,opacity:.65})));
+for(let i=0;i<80;i++){
+  const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.3+Math.random()*1.5,0),mat(0x18232b));
+  m.position.set(Math.random()*WORLD_LENGTH,20+Math.random()*50,-8-Math.random()*18); m.rotation.set(Math.random()*3,Math.random()*3,Math.random()*3); world.add(m);
+}
+
+// Rocket visual
+const rocket=new THREE.Group(); scene.add(rocket);
+const body=new THREE.Mesh(new THREE.CapsuleGeometry(1.25,4.5,6,12),mat(0xe9eef2,.28,.72));
+body.rotation.z=Math.PI/2; body.castShadow=true; rocket.add(body);
+const nose=new THREE.Mesh(new THREE.ConeGeometry(1.23,2.3,24),mat(0x9fc8dd,.25,.8));
+nose.rotation.z=-Math.PI/2; nose.position.x=3.5; rocket.add(nose);
+const windowM=new THREE.MeshStandardMaterial({color:0x5ee8ff,emissive:0x0d6580,emissiveIntensity:2,metalness:.4,roughness:.15});
+const wnd=new THREE.Mesh(new THREE.SphereGeometry(.72,18,12),windowM); wnd.scale.z=.35; wnd.position.set(1.35,.55,1.08); rocket.add(wnd);
+for(const sy of [-1,1]){
+  const fin=new THREE.Mesh(new THREE.BoxGeometry(1.6,.25,2.3),mat(0xcdd5da,.4,.6)); fin.position.set(-2.35,sy*1.25,0); rocket.add(fin);
+}
+const flame=new THREE.Mesh(new THREE.ConeGeometry(.8,4.5,14),new THREE.MeshBasicMaterial({color:0x66eaff,transparent:true,opacity:.78}));
+flame.rotation.z=Math.PI/2; flame.position.x=-4.5; flame.visible=false; rocket.add(flame);
+const retroFlame=new THREE.Mesh(new THREE.ConeGeometry(.45,2.1,10),new THREE.MeshBasicMaterial({color:0xffa54f,transparent:true,opacity:.7}));
+retroFlame.rotation.z=-Math.PI/2; retroFlame.position.x=4.2; retroFlame.visible=false; rocket.add(retroFlame);
+
+const legs=[];
+for(const sy of [-1,1]){
+  const leg=new THREE.Group();
+  const strut=new THREE.Mesh(new THREE.BoxGeometry(.28,2.5,.28),mat(0x788993,.35,.75));
+  strut.position.y=sy*1.3; strut.rotation.z=sy*.5; leg.add(strut);
+  const foot=new THREE.Mesh(new THREE.BoxGeometry(1.1,.22,.8),mat(0x9aa9b0,.45,.7)); foot.position.set(-sy*.55,sy*2.25,0); leg.add(foot);
+  leg.visible=false; rocket.add(leg); legs.push(leg);
+}
+
+const keys={};
+addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyL'&&!e.repeat)toggleLegs();if(e.code==='KeyR')reset();});
+addEventListener('keyup',e=>keys[e.code]=false);
+for(const [id,code] of [['left','ArrowLeft'],['right','ArrowRight'],['thrust','Space'],['brake','ArrowDown']]){
+  const el=document.getElementById(id);
+  const on=e=>{e.preventDefault();keys[code]=true}, off=e=>{e.preventDefault();keys[code]=false};
+  el.addEventListener('pointerdown',on); el.addEventListener('pointerup',off); el.addEventListener('pointercancel',off); el.addEventListener('pointerleave',off);
+}
+
+let state;
+function reset(){
+  state={x:3,y:8,vx:0,vy:0,a:0,av:0,fuel:100,hull:100,legs:false,padIndex:0,landTimer:0,finished:false};
+  rocket.position.set(state.x,state.y,3); rocket.rotation.z=0;
+}
+reset();
+function toggleLegs(){state.legs=!state.legs;legs.forEach(l=>l.visible=state.legs);}
+
+function aabbHit(cx,cy,hw,hh,s){
+  return cx+hw>s.x && cx-hw<s.x+s.w && cy+hh>s.y && cy-hh<s.y+s.h;
+}
+function banner(t){
+  const el=document.getElementById('center'); el.textContent=t; el.style.opacity=1; clearTimeout(banner.t);
+  banner.t=setTimeout(()=>el.style.opacity=0,1100);
+}
+function crash(dmg){
+  state.hull=Math.max(0,state.hull-dmg); state.vx*=-.25; state.vy=Math.abs(state.vy)*.2+1.5; state.av+=(Math.random()-.5)*1.4;
+  if(state.hull<=0){banner('HULL LOST'); setTimeout(reset,900);}
+}
+
+function physics(dt){
+  if(state.finished) return;
+  const left=keys.KeyA||keys.ArrowLeft, right=keys.KeyD||keys.ArrowRight;
+  const thrust=keys.KeyW||keys.ArrowUp||keys.Space;
+  const brake=keys.KeyS||keys.ArrowDown;
+  const torque=2.8;
+  if(left) state.av+=torque*dt;
+  if(right) state.av-=torque*dt;
+  state.av*=Math.pow(.55,dt);
+  state.a+=state.av*dt;
+  // soft auto-stabilizer only when legs are out
+  if(state.legs && !left && !right) state.av += (-state.a*.95-state.av*.7)*dt;
+
+  const dirX=Math.cos(state.a), dirY=Math.sin(state.a);
+  if(thrust && state.fuel>0){
+    const F=18.5; state.vx+=dirX*F*dt; state.vy+=dirY*F*dt; state.fuel=Math.max(0,state.fuel-4.7*dt);
+    flame.visible=true; flame.scale.x=.75+Math.random()*.45;
+  }else flame.visible=false;
+  if(brake && state.fuel>0){
+    // retro system opposes current velocity rather than blindly reversing
+    const sp=Math.hypot(state.vx,state.vy);
+    if(sp>.01){ state.vx-=state.vx/sp*10*dt; state.vy-=state.vy/sp*10*dt; }
+    state.fuel=Math.max(0,state.fuel-2.2*dt); retroFlame.visible=true;
+  } else retroFlame.visible=false;
+
+  state.vy-=8.7*dt; // moon-ish arcade gravity
+  state.vx*=Math.pow(.996,dt*60); state.vy*=Math.pow(.999,dt*60);
+  state.x+=state.vx*dt; state.y+=state.vy*dt;
+
+  const hw=state.legs?3.25:3.6, hh=state.legs?2.55:1.45;
+  for(const s of solids){
+    if(aabbHit(state.x,state.y,hw,hh,s)){
+      const impact=Math.hypot(state.vx,state.vy);
+      const onExpectedPad=pads[state.padIndex];
+      const isPad = onExpectedPad && s.y+s.h >= onExpectedPad.y-.05 &&
+                    Math.abs((s.x+s.w/2)-(onExpectedPad.x+onExpectedPad.w/2))<.2;
+      const upright=Math.abs(state.a)<.23, gentle=Math.abs(state.vy)<3.1 && Math.abs(state.vx)<2.4;
+      if(isPad && state.legs && upright && gentle && state.vy<=1.5){
+        state.y=s.y+s.h+hh+.02; state.vy=0; state.vx*=.78; state.av*=.5;
+        state.landTimer+=dt;
+        if(state.landTimer>.65){
+          state.padIndex++;
+          state.landTimer=0; state.fuel=Math.min(100,state.fuel+18); banner(state.padIndex>=pads.length?'COURSE COMPLETE':'PAD SECURED');
+          if(state.padIndex>=pads.length){state.finished=true; flame.visible=false; retroFlame.visible=false;}
+        }
+      } else {
+        state.landTimer=0;
+        const dmg=(s.hazard?22:8)+impact*1.5;
+        crash(Math.min(34,dmg));
+        // move outward vertically to avoid sticky collision
+        if(state.vy<0) state.y=s.y+s.h+hh+.05; else state.y=s.y-hh-.05;
+      }
+    }
+  }
+  state.x=Math.max(-4,state.x);
+  if(state.y<-30) {banner('VOID FALL'); reset();}
+}
+
+const ui={
+ speed:document.getElementById('speed'),vspeed:document.getElementById('vspeed'),angle:document.getElementById('angle'),
+ fuel:document.getElementById('fuel'),fuelBar:document.getElementById('fuelBar'),hull:document.getElementById('hull'),
+ pad:document.getElementById('pad'),mini:document.getElementById('miniDot')
+};
+const padMarks=[];
+pads.forEach(p=>{const e=document.createElement('div');e.className='padMark';e.style.left=(8+(p.x+p.w/2)/WORLD_LENGTH*234)+'px';document.getElementById('minimap').appendChild(e);padMarks.push(e);});
+
+let last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt=Math.min(.025,(now-last)/1000); last=now;
+  // fixed-ish substeps
+  const n=2; for(let i=0;i<n;i++) physics(dt/n);
+  rocket.position.set(state.x,state.y,3); rocket.rotation.z=state.a;
+
+  // cinematic side-scroller camera with speed look-ahead
+  const look=THREE.MathUtils.clamp(state.vx*1.2,-5,13);
+  const targetX=state.x+look, targetY=THREE.MathUtils.clamp(state.y+4,5,24);
+  camera.position.x += (targetX-camera.position.x)*Math.min(1,dt*3.0);
+  camera.position.y += (targetY-camera.position.y)*Math.min(1,dt*2.3);
+  camera.lookAt(camera.position.x,camera.position.y-2,0);
+
+  const sp=Math.hypot(state.vx,state.vy);
+  ui.speed.textContent=sp.toFixed(1);
+  ui.vspeed.textContent=state.vy.toFixed(1);
+  ui.angle.textContent=(state.a*180/Math.PI).toFixed(0)+'°';
+  ui.fuel.textContent=state.fuel.toFixed(0)+'%'; ui.fuelBar.style.width=state.fuel+'%';
+  ui.hull.textContent=state.hull.toFixed(0)+'%'; ui.pad.textContent=Math.min(state.padIndex+1,pads.length)+' / '+pads.length;
+  ui.mini.style.left=(8+THREE.MathUtils.clamp(state.x/WORLD_LENGTH,0,1)*234)+'px';
+
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
