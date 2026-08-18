@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Voronoi–Laplace Multiplication Field</title>
+  <style>
+    :root{--bg:#07090f;--panel:#0d1220cc;--line:#1b2741;--text:#eef4ff;--muted:#8fa1c1}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(circle at 50% -10%,#12203b 0,#07090f 40%,#03050a 100%);color:var(--text);font:14px/1.45 Inter,system-ui,sans-serif;overflow-x:hidden}
+    header{padding:28px 28px 18px;max-width:1400px;margin:auto}
+    h1{margin:0;font-size:clamp(30px,5vw,70px);letter-spacing:-.05em}
+    .sub{color:var(--muted);max-width:820px;font-size:16px}
+    nav a{color:#cfe3ff;text-decoration:none;margin-right:18px}
+    .shell{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;max-width:1400px;margin:auto;padding:0 28px 28px}
+    .viewport{position:relative;min-height:72vh;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:#05070c;box-shadow:0 30px 80px #0008}
+    canvas{display:block;width:100%;height:100%}
+    .hud{position:absolute;left:18px;bottom:16px;background:#060912aa;border:1px solid #22304d;border-radius:14px;padding:12px 14px;backdrop-filter:blur(12px)}
+    .hud b{display:block;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+    .hud span{color:var(--muted)}
+    aside{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:18px;backdrop-filter:blur(12px);height:max-content}
+    .group{margin:0 0 20px}
+    .group h3{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:#bcd2ff;margin:0 0 10px}
+    label{display:grid;grid-template-columns:1fr 70px;gap:10px;align-items:center;margin:9px 0;color:#c9d5ec}
+    input[type=range]{width:100%}
+    .value{text-align:right;color:#8fb8ff;font-variant-numeric:tabular-nums}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;max-width:1400px;margin:0 auto 32px;padding:0 28px}
+    .card{border:1px solid var(--line);border-radius:18px;padding:16px;background:#0a0e18}
+    .card strong{display:block;margin-bottom:7px}
+    .card p{margin:0;color:var(--muted)}
+    @media(max-width:900px){.shell{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}.viewport{min-height:62vh}}
+    @media(max-width:560px){.cards{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header>
+  <nav><a href="index.html">Main Field</a><a href="enigma.html">Enigma Support</a><a href="epoch.html">Epoch Chamber</a></nav>
+  <h1>Voronoi–Laplace Multiplication Field</h1>
+  <p class="sub">A live Three.js research surface where two procedural fields multiply, Voronoi territories provide structure, and Laplace curvature builds luminous “moats” between active regions and the surrounding void.</p>
+</header>
+
+<div class="shell">
+  <section class="viewport" id="viewport">
+    <div class="hud"><b>Composite regime</b><span>product × territory × curvature × moat</span></div>
+  </section>
+  <aside>
+    <div class="group">
+      <h3>Multiplication</h3>
+      <label>Amplitude A <input id="ampA" type="range" min=".1" max="2.5" step=".01" value="1.15"><span class="value" id="ampAv"></span></label>
+      <label>Amplitude B <input id="ampB" type="range" min=".1" max="2.5" step=".01" value="1.0"><span class="value" id="ampBv"></span></label>
+      <label>Frequency <input id="freq" type="range" min=".5" max="8" step=".01" value="3.2"><span class="value" id="freqv"></span></label>
+    </div>
+    <div class="group">
+      <h3>Voronoi regime</h3>
+      <label>Scale <input id="vscale" type="range" min="2" max="18" step=".1" value="7"><span class="value" id="vscalev"></span></label>
+      <label>Moat width <input id="moat" type="range" min=".5" max="12" step=".1" value="5.5"><span class="value" id="moatv"></span></label>
+    </div>
+    <div class="group">
+      <h3>Laplace cover</h3>
+      <label>Gain <input id="lap" type="range" min=".1" max="10" step=".1" value="3.6"><span class="value" id="lapv"></span></label>
+      <label>Elevation <input id="height" type="range" min="0" max="2.5" step=".01" value=".8"><span class="value" id="heightv"></span></label>
+    </div>
+    <div class="group">
+      <h3>Void</h3>
+      <label>Depth <input id="voidDepth" type="range" min=".1" max="2" step=".01" value=".7"><span class="value" id="voidDepthv"></span></label>
+    </div>
+  </aside>
+</div>
+
+<div class="cards">
+  <div class="card"><strong>Multiplication body</strong><p>A(x,y,t) · B(x,y,t) becomes the broad surface displacement and phase source.</p></div>
+  <div class="card"><strong>Voronoi territory</strong><p>Nearest-cell logic breaks the field into moving domains without replacing the continuous product.</p></div>
+  <div class="card"><strong>Laplace cover</strong><p>A finite-difference curvature estimate lifts regions where the product bends most strongly.</p></div>
+  <div class="card"><strong>Moat bridge</strong><p>Cell-boundary distance is mixed with curvature, producing luminous seams between body and void.</p></div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.180.0/build/three.module.js';
+
+const host = document.getElementById('viewport');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+host.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x05070c, .055);
+
+const camera = new THREE.PerspectiveCamera(45,1,.1,100);
+camera.position.set(0,8.8,9.8);
+camera.lookAt(0,0,0);
+
+const uniforms = {
+  uTime:{value:0}, uAmpA:{value:1.15}, uAmpB:{value:1.0}, uFreq:{value:3.2},
+  uVScale:{value:7.0}, uMoat:{value:5.5}, uLap:{value:3.6}, uHeight:{value:.8}, uVoid:{value:.7}
+};
+
+const geo = new THREE.PlaneGeometry(12,12,220,220);
+geo.rotateX(-Math.PI/2);
+
+const mat = new THREE.ShaderMaterial({
+  uniforms,
+  side:THREE.DoubleSide,
+  vertexShader:`
+    varying vec3 vPos;
+    varying float vProd;
+    uniform float uTime,uAmpA,uAmpB,uFreq,uHeight;
+    float productField(vec2 p){
+      float A = uAmpA*sin(p.x*uFreq + uTime*.8)*cos(p.y*(uFreq*.72)-uTime*.45);
+      float B = uAmpB*sin(length(p)*(uFreq*1.55)-uTime*1.15);
+      return A*B;
+    }
+    void main(){
+      vec3 p=position;
+      float prod=productField(p.xz);
+      p.y += prod*uHeight;
+      vProd=prod; vPos=p;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
+    }`,
+  fragmentShader:`
+    varying vec3 vPos;
+    varying float vProd;
+    uniform float uTime,uVScale,uMoat,uLap,uVoid,uFreq,uAmpA,uAmpB;
+
+    vec2 hash22(vec2 p){
+      p=vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));
+      return fract(sin(p)*43758.5453);
+    }
+    vec2 voronoi2(vec2 x){
+      vec2 n=floor(x), f=fract(x);
+      float d1=99.,d2=99.;
+      for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){
+        vec2 g=vec2(float(i),float(j));
+        vec2 o=hash22(n+g);
+        o=.5+.42*sin(uTime*.22+6.2831*o);
+        float d=length(g+o-f);
+        if(d<d1){d2=d1;d1=d;} else if(d<d2){d2=d;}
+      }
+      return vec2(d1,d2);
+    }
+    float pf(vec2 p){
+      float A=uAmpA*sin(p.x*uFreq+uTime*.8)*cos(p.y*(uFreq*.72)-uTime*.45);
+      float B=uAmpB*sin(length(p)*(uFreq*1.55)-uTime*1.15);
+      return A*B;
+    }
+    float laplace(vec2 p){
+      float e=.035;
+      return pf(p+vec2(e,0.))+pf(p-vec2(e,0.))+pf(p+vec2(0.,e))+pf(p-vec2(0.,e))-4.*pf(p);
+    }
+    void main(){
+      vec2 p=vPos.xz;
+      vec2 vd=voronoi2(p*uVScale*.16);
+      float edge=abs(vd.y-vd.x);
+      float moat=exp(-edge*uMoat);
+      float L=abs(laplace(p))*uLap*22.;
+      float cover=1.-exp(-L);
+      float voidMask=exp(-abs(vProd)*uVoid*4.);
+
+      vec3 body=mix(vec3(.025,.07,.13),vec3(.13,.46,.95),smoothstep(-.9,.9,vProd));
+      vec3 seam=vec3(.82,.95,1.0)*(moat*(.18+.82*cover));
+      vec3 hot=vec3(.95,.42,.77)*cover*.48;
+      vec3 col=body+seam+hot;
+      col*=1.-voidMask*.48;
+      float grid=smoothstep(.97,1.,abs(sin(p.x*3.1415))*abs(sin(p.y*3.1415)));
+      col+=grid*.035;
+      gl_FragColor=vec4(col,1.);
+    }`
+});
+
+const mesh = new THREE.Mesh(geo,mat);
+scene.add(mesh);
+
+const ring = new THREE.Mesh(
+  new THREE.TorusGeometry(4.2,.012,8,256),
+  new THREE.MeshBasicMaterial({color:0x5b83c7,transparent:true,opacity:.4})
+);
+ring.rotation.x=Math.PI/2;
+ring.position.y=.03;
+scene.add(ring);
+
+const clock = new THREE.Clock();
+function resize(){
+  const w=host.clientWidth,h=host.clientHeight;
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(host); resize();
+
+const controls = ['ampA','ampB','freq','vscale','moat','lap','height','voidDepth'];
+const map = {ampA:'uAmpA',ampB:'uAmpB',freq:'uFreq',vscale:'uVScale',moat:'uMoat',lap:'uLap',height:'uHeight',voidDepth:'uVoid'};
+for(const id of controls){
+  const el=document.getElementById(id), out=document.getElementById(id+'v');
+  const sync=()=>{uniforms[map[id]].value=parseFloat(el.value);out.textContent=parseFloat(el.value).toFixed(2)};
+  el.addEventListener('input',sync);sync();
+}
+function animate(){
+  requestAnimationFrame(animate);
+  uniforms.uTime.value=clock.getElapsedTime();
+  mesh.rotation.y=Math.sin(uniforms.uTime.value*.07)*.08;
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>

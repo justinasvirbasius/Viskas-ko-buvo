@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Epoch Echo Chamber — Voronoi / Laplace Crevice</title>
+<style>
+:root{--bg:#04060b;--panel:#0b1020d9;--line:#1d2b47;--text:#edf5ff;--muted:#8ea1c4}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 50% -18%,#192e55 0,#070b14 34%,#03050a 70%);color:var(--text);font:14px/1.45 Inter,system-ui,sans-serif}
+header{max-width:1460px;margin:auto;padding:26px 28px 14px}
+nav a{color:#c8ddff;text-decoration:none;margin-right:18px}
+h1{font-size:clamp(36px,6.7vw,92px);line-height:.92;letter-spacing:-.055em;margin:18px 0 12px}
+.lead{max-width:900px;color:var(--muted);font-size:16px}
+.layout{max-width:1460px;margin:auto;padding:0 28px 30px;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px}
+.viewport{position:relative;height:73vh;min-height:580px;border:1px solid var(--line);border-radius:25px;overflow:hidden;background:#02040a;box-shadow:0 36px 90px #0009}
+.viewport canvas{display:block;width:100%;height:100%}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:25px;padding:18px;height:max-content;backdrop-filter:blur(14px)}
+.group{margin-bottom:20px}.group h3,.tag{margin:0 0 10px;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#a7c5f8}
+label{display:grid;grid-template-columns:1fr;gap:5px;color:#d4e0f5;margin:12px 0}
+.rangeLine{display:grid;grid-template-columns:1fr 56px;gap:8px;align-items:center}.val{text-align:right;color:#91b9ff;font-variant-numeric:tabular-nums}
+button{width:100%;padding:11px 12px;border-radius:12px;border:1px solid #34507e;background:#13223b;color:#eef6ff;font-weight:700;cursor:pointer}
+button.active{background:#20385f}
+.legend{position:absolute;left:17px;bottom:16px;border:1px solid #243858;background:#040812c8;border-radius:14px;padding:12px 14px;backdrop-filter:blur(10px)}
+.legend b{display:block;font-size:11px;letter-spacing:.13em;text-transform:uppercase}
+.legend span{color:#93a8c9}
+.cards{max-width:1460px;margin:0 auto 34px;padding:0 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.card{background:#080d17;border:1px solid var(--line);border-radius:18px;padding:17px}.card p{color:var(--muted);margin:6px 0 0}.eq{font:15px ui-monospace,SFMono-Regular,monospace;color:#dce9ff}
+@media(max-width:940px){.layout{grid-template-columns:1fr}.viewport{height:66vh}.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <nav><a href="index.html">Main Field</a><a href="enigma.html">Weak Enigma</a><a href="epoch.html">Epoch Chamber</a></nav>
+  <h1>Epoch Echo Chamber</h1>
+  <p class="lead">A second Enigma problem: a crevice occupies the interface between two independently moving point-goals. They approach the same interface, but remain separate in the chamber. A central separation line and two Laplace shoulders form three coupled bands; Voronoi cells then behave as echo compartments that follow movement and modulate two distinct note families.</p>
+</header>
+
+<div class="layout">
+  <section id="viewport" class="viewport">
+    <div class="legend"><b>Three-band separation</b><span>left Laplace shoulder · crevice interface · right Laplace shoulder</span></div>
+  </section>
+
+  <aside class="panel">
+    <div class="group">
+      <h3>Echo chamber</h3>
+      <button id="audio">Enable movement audio</button>
+      <label>Echo gain<div class="rangeLine"><input id="echo" type="range" min="0" max="1" step=".01" value=".46"><span class="val" id="echov"></span></div></label>
+      <label>Room decay<div class="rangeLine"><input id="decay" type="range" min=".2" max="4" step=".01" value="1.7"><span class="val" id="decayv"></span></div></label>
+    </div>
+
+    <div class="group">
+      <h3>Crevice & separation</h3>
+      <label>Crevice width<div class="rangeLine"><input id="crevice" type="range" min=".03" max=".8" step=".01" value=".23"><span class="val" id="crevicev"></span></div></label>
+      <label>Shoulder width<div class="rangeLine"><input id="shoulder" type="range" min=".08" max="1.8" step=".01" value=".54"><span class="val" id="shoulderv"></span></div></label>
+      <label>Laplace gain<div class="rangeLine"><input id="lap" type="range" min=".1" max="10" step=".1" value="4.8"><span class="val" id="lapv"></span></div></label>
+    </div>
+
+    <div class="group">
+      <h3>Two beginnings</h3>
+      <label>Point separation<div class="rangeLine"><input id="sep" type="range" min=".7" max="4.8" step=".01" value="2.65"><span class="val" id="sepv"></span></div></label>
+      <label>Movement<div class="rangeLine"><input id="motion" type="range" min="0" max="2" step=".01" value=".78"><span class="val" id="motionv"></span></div></label>
+      <label>Voronoi density<div class="rangeLine"><input id="vor" type="range" min="2" max="14" step=".1" value="7.4"><span class="val" id="vorv"></span></div></label>
+    </div>
+  </aside>
+</div>
+
+<div class="cards">
+  <section class="card"><div class="tag">Crevice operator</div><div class="eq">C(x)=exp(-|d₁-d₂| / w)</div><p>The interface is not fused. It is a narrow chamber boundary where two source distances become equal.</p></section>
+  <section class="card"><div class="tag">Two Laplace shoulders</div><div class="eq">S± = |∇²P| · band(±w)</div><p>Curvature is split into two supporting bands around the central crevice, creating three readable layers instead of one edge.</p></section>
+  <section class="card"><div class="tag">Echo Voronoi</div><div class="eq">Eᵢ(t)=Vᵢ · motion · phaseᵢ</div><p>Cells act like moving acoustic compartments. Crossing or compressing cells shifts the two source note families while a short echo follows them.</p></section>
+</div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.180.0/build/three.module.js';
+
+const host=document.getElementById('viewport');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+host.prepend(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x03050a,.05);
+const camera=new THREE.PerspectiveCamera(46,1,.1,100);
+camera.position.set(0,8.6,10.4); camera.lookAt(0,0,0);
+
+const uniforms={
+  t:{value:0}, crevice:{value:.23}, shoulder:{value:.54}, lap:{value:4.8},
+  sep:{value:2.65}, motion:{value:.78}, vor:{value:7.4}
+};
+
+const geo=new THREE.PlaneGeometry(14,11,260,210); geo.rotateX(-Math.PI/2);
+const material=new THREE.ShaderMaterial({
+  uniforms, side:THREE.DoubleSide,
+  vertexShader:`
+  varying vec3 vp; varying float vField; varying float vMeet;
+  uniform float t,sep,motion;
+  vec2 sourcesA(){return vec2(-sep + sin(t*.43)*motion*.55, sin(t*.63)*motion);}
+  vec2 sourcesB(){return vec2( sep + cos(t*.39)*motion*.55, cos(t*.57)*motion);}
+  float field(vec2 p){
+    vec2 a=sourcesA(), b=sourcesB();
+    float da=length(p-a), db=length(p-b);
+    return sin(da*3.7-t*1.5)*.54 + cos(db*4.2-t*1.18)*.46;
+  }
+  void main(){
+    vec3 p=position; float f=field(p.xz);
+    vec2 a=sourcesA(),b=sourcesB();
+    float meet=abs(length(p.xz-a)-length(p.xz-b));
+    p.y += f*.30 + exp(-meet*3.2)*.18;
+    vField=f; vMeet=meet; vp=p;
+    gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
+  }`,
+  fragmentShader:`
+  varying vec3 vp; varying float vField; varying float vMeet;
+  uniform float t,crevice,shoulder,lap,sep,motion,vor;
+
+  vec2 H(vec2 p){
+    p=vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));
+    return fract(sin(p)*43758.5453123);
+  }
+  vec2 VA(vec2 x){
+    vec2 n=floor(x),f=fract(x);float d1=99.,d2=99.;
+    for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){
+      vec2 g=vec2(float(i),float(j));vec2 o=H(n+g);
+      o=.5+.4*sin(t*.21+6.2831*o);
+      float d=length(g+o-f);
+      if(d<d1){d2=d1;d1=d;}else if(d<d2)d2=d;
+    }
+    return vec2(d1,d2);
+  }
+  vec2 A(){return vec2(-sep + sin(t*.43)*motion*.55, sin(t*.63)*motion);}
+  vec2 B(){return vec2( sep + cos(t*.39)*motion*.55, cos(t*.57)*motion);}
+  float P(vec2 p){
+    float da=length(p-A()),db=length(p-B());
+    return sin(da*3.7-t*1.5)*.54+cos(db*4.2-t*1.18)*.46;
+  }
+  float L(vec2 p){
+    float e=.04;
+    return P(p+vec2(e,0))+P(p-vec2(e,0))+P(p+vec2(0,e))+P(p-vec2(0,e))-4.*P(p);
+  }
+  void main(){
+    vec2 p=vp.xz;
+    float da=length(p-A()), db=length(p-B());
+    float interfaceD=abs(da-db);
+
+    float c=exp(-interfaceD/max(crevice,.001)*2.2);
+    float leftShoulder=exp(-pow((interfaceD-shoulder)/max(shoulder*.36,.02),2.));
+    float rightShoulder=exp(-pow((interfaceD-shoulder*1.85)/max(shoulder*.42,.02),2.));
+    float curvature=clamp(abs(L(p))*lap*24.,0.,1.);
+
+    vec2 vd=VA(p*vor*.14);
+    float cellEdge=exp(-abs(vd.y-vd.x)*8.0);
+    float echoCell=cellEdge*(.25+.75*curvature);
+
+    float influenceA=exp(-da*.43), influenceB=exp(-db*.43);
+    vec3 left=vec3(.08,.31,.84)*influenceA;
+    vec3 right=vec3(.72,.13,.64)*influenceB;
+    vec3 base=vec3(.012,.025,.055)+left+right;
+
+    vec3 creviceLight=vec3(.88,.97,1.0)*c*(.35+.65*curvature);
+    vec3 shoulderLight=vec3(.16,.72,.96)*leftShoulder*curvature*.7
+                     +vec3(.92,.36,.72)*rightShoulder*curvature*.55;
+    vec3 echo=vec3(.54,.76,1.0)*echoCell*.42;
+
+    float waveA=.5+.5*sin(da*10.-t*3.2);
+    float waveB=.5+.5*sin(db*11.3-t*2.7);
+    vec3 wave=vec3(.3,.55,1.)*pow(waveA,18.)*influenceA*.28
+             +vec3(1.,.32,.7)*pow(waveB,18.)*influenceB*.24;
+
+    float sourceGlow=exp(-da*da*9.)+exp(-db*db*9.);
+    vec3 col=base+creviceLight+shoulderLight+echo+wave+sourceGlow*vec3(.8,.9,1.)*.7;
+    gl_FragColor=vec4(col,1.);
+  }`
+});
+scene.add(new THREE.Mesh(geo,material));
+
+for (const z of [-0.16,0.16]) {
+  const rail=new THREE.Mesh(
+    new THREE.BoxGeometry(8.5,.025,.018),
+    new THREE.MeshBasicMaterial({color:0x8db7ff,transparent:true,opacity:.28})
+  );
+  rail.rotation.y=Math.PI/2;
+  rail.position.set(0,.04,z);
+  scene.add(rail);
+}
+
+const clock=new THREE.Clock();
+function resize(){
+  const w=host.clientWidth,h=host.clientHeight;
+  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(host);resize();
+
+const bind={crevice:'crevice',shoulder:'shoulder',lap:'lap',sep:'sep',motion:'motion',vor:'vor'};
+for(const [id,key] of Object.entries(bind)){
+  const el=document.getElementById(id), out=document.getElementById(id+'v');
+  function sync(){uniforms[key].value=+el.value;out.textContent=(+el.value).toFixed(2)}
+  el.addEventListener('input',sync);sync();
+}
+
+let ctx=null, master=null, delay=null, feedback=null, oscA=null, oscB=null, gainA=null, gainB=null, audioOn=false;
+const audioBtn=document.getElementById('audio');
+const echoEl=document.getElementById('echo'), decayEl=document.getElementById('decay');
+document.getElementById('echov').textContent=(+echoEl.value).toFixed(2);
+document.getElementById('decayv').textContent=(+decayEl.value).toFixed(2);
+
+function buildAudio(){
+  ctx=new (window.AudioContext||window.webkitAudioContext)();
+  master=ctx.createGain(); master.gain.value=0;
+  delay=ctx.createDelay(1.5); delay.delayTime.value=.28;
+  feedback=ctx.createGain(); feedback.gain.value=.39;
+  delay.connect(feedback); feedback.connect(delay);
+  delay.connect(master); master.connect(ctx.destination);
+
+  oscA=ctx.createOscillator(); gainA=ctx.createGain();
+  oscB=ctx.createOscillator(); gainB=ctx.createGain();
+  oscA.type='sine'; oscB.type='triangle';
+  gainA.gain.value=.12; gainB.gain.value=.08;
+  oscA.connect(gainA); oscB.connect(gainB);
+  gainA.connect(master); gainB.connect(master);
+  gainA.connect(delay); gainB.connect(delay);
+  oscA.start(); oscB.start();
+}
+audioBtn.onclick=async()=>{
+  if(!ctx) buildAudio();
+  await ctx.resume();
+  audioOn=!audioOn;
+  master.gain.setTargetAtTime(audioOn?.10:0,ctx.currentTime,.035);
+  audioBtn.textContent=audioOn?'Movement audio enabled':'Enable movement audio';
+  audioBtn.classList.toggle('active',audioOn);
+};
+echoEl.addEventListener('input',()=>{
+  document.getElementById('echov').textContent=(+echoEl.value).toFixed(2);
+  if(feedback) feedback.gain.setTargetAtTime(.08+(+echoEl.value)*.68,ctx.currentTime,.03);
+});
+decayEl.addEventListener('input',()=>{
+  document.getElementById('decayv').textContent=(+decayEl.value).toFixed(2);
+  if(delay) delay.delayTime.setTargetAtTime(.08+(+decayEl.value)*.12,ctx.currentTime,.03);
+});
+
+function animate(){
+  requestAnimationFrame(animate);
+  const t=clock.getElapsedTime(); uniforms.t.value=t;
+  if(ctx && oscA && oscB){
+    const m=uniforms.motion.value, density=uniforms.vor.value;
+    const fA=164.81*Math.pow(2,(Math.sin(t*.43)*m+density*.035)/12);
+    const fB=220.00*Math.pow(2,(Math.cos(t*.39)*m-density*.025)/12);
+    oscA.frequency.setTargetAtTime(fA,ctx.currentTime,.04);
+    oscB.frequency.setTargetAtTime(fB,ctx.currentTime,.04);
+  }
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>

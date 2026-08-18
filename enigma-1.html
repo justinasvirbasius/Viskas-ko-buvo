@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Enigma Support Regime</title>
+<style>
+:root{--bg:#05060a;--line:#22283c;--muted:#98a3bb}
+*{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#0b0f19,#040509);color:#f2f6ff;font:14px/1.5 Inter,system-ui,sans-serif}
+main{max-width:1280px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;gap:20px;align-items:end;flex-wrap:wrap}
+h1{font-size:clamp(34px,7vw,84px);line-height:.9;letter-spacing:-.06em;margin:18px 0}.muted{color:var(--muted);max-width:720px}
+a{color:#bfd9ff}.view{height:66vh;min-height:520px;border:1px solid var(--line);border-radius:24px;overflow:hidden;background:#030408;margin-top:24px}
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;margin-top:16px}.card{background:#0a0d14;border:1px solid var(--line);border-radius:18px;padding:18px}
+.eq{font:18px ui-monospace,SFMono-Regular,monospace;color:#dce8ff}.tag{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9ab9ef}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<div class="top">
+  <div><a href="index.html">← Main field</a> &nbsp; <a href="epoch.html">Epoch Chamber →</a><h1>Weak Enigma</h1></div>
+  <p class="muted">A support layer rather than a dominant effect: the Enigma field only appears where multiplication is quiet, Voronoi certainty is weak, and Laplace curvature is present. It is deliberately weak so the primary regime remains readable.</p>
+</div>
+
+<div id="view" class="view"></div>
+
+<div class="grid">
+  <section class="card"><div class="tag">Novel support operator</div><p class="eq">E = (1 − |P|) · uncertainty(V) · clamp(|∇²P|)</p><p class="muted">The field activates in ambiguous seams. It does not create new territories; it exposes transitional regions that the stronger moat would otherwise flatten into a single bright edge.</p></section>
+  <section class="card"><div class="tag">Visual behavior</div><p class="muted">Fine ribbons drift across low-confidence cell boundaries. Their amplitude is intentionally capped, producing a subtle “weak novelty” that adds information without stealing focus from the multiplication body.</p></section>
+</div>
+</main>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.180.0/build/three.module.js';
+const host=document.getElementById('view');
+const r=new THREE.WebGLRenderer({antialias:true,alpha:true}); r.setPixelRatio(Math.min(2,devicePixelRatio)); host.appendChild(r.domElement);
+const s=new THREE.Scene(); s.fog=new THREE.FogExp2(0x040509,.045);
+const c=new THREE.PerspectiveCamera(48,1,.1,100); c.position.set(0,7.2,10); c.lookAt(0,0,0);
+const u={t:{value:0}};
+const g=new THREE.PlaneGeometry(13,9,240,180); g.rotateX(-Math.PI/2);
+const m=new THREE.ShaderMaterial({
+ uniforms:u,side:THREE.DoubleSide,transparent:false,
+ vertexShader:`
+ varying vec3 vp; varying float prod;
+ uniform float t;
+ float P(vec2 p){float a=sin(p.x*2.6+t*.7)*cos(p.y*2.1-t*.4);float b=sin(length(p)*5.1-t);return a*b;}
+ void main(){vec3 p=position;prod=P(p.xz);p.y+=prod*.38;vp=p;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+ fragmentShader:`
+ varying vec3 vp; varying float prod; uniform float t;
+ vec2 h(vec2 p){p=vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3)));return fract(sin(p)*43758.5453);}
+ vec2 v2(vec2 x){vec2 n=floor(x),f=fract(x);float a=9.,b=9.;for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec2 q=vec2(float(i),float(j));vec2 o=h(n+q);o=.5+.36*sin(t*.16+6.2831*o);float d=length(q+o-f);if(d<a){b=a;a=d;}else if(d<b)b=d;}return vec2(a,b);}
+ float P(vec2 p){float a=sin(p.x*2.6+t*.7)*cos(p.y*2.1-t*.4);float b=sin(length(p)*5.1-t);return a*b;}
+ float L(vec2 p){float e=.045;return P(p+vec2(e,0.))+P(p-vec2(e,0.))+P(p+vec2(0.,e))+P(p-vec2(0.,e))-4.*P(p);}
+ void main(){
+   vec2 p=vp.xz; vec2 d=v2(p*.95);
+   float uncertainty=exp(-abs(d.y-d.x)*7.5);
+   float quiet=pow(1.-clamp(abs(prod),0.,1.),1.8);
+   float curve=clamp(abs(L(p))*28.,0.,1.);
+   float enigma=quiet*uncertainty*curve;
+   float ribbon=.5+.5*sin((p.x+p.y)*21.+t*2.1+curve*8.);
+   enigma*=mix(.35,1.,ribbon);
+   vec3 base=mix(vec3(.015,.025,.045),vec3(.06,.18,.34),.5+.5*prod);
+   vec3 weak=vec3(.74,.88,1.)*enigma*.85 + vec3(.82,.34,.72)*enigma*curve*.35;
+   float stars=pow(max(0.,sin(p.x*37.+sin(p.y*11.))*sin(p.y*31.)),28.)*.1;
+   gl_FragColor=vec4(base+weak+stars,1.);
+ }`
+});
+s.add(new THREE.Mesh(g,m));
+const clock=new THREE.Clock();
+function size(){r.setSize(host.clientWidth,host.clientHeight,false);c.aspect=host.clientWidth/host.clientHeight;c.updateProjectionMatrix()}
+new ResizeObserver(size).observe(host);size();
+(function loop(){requestAnimationFrame(loop);u.t.value=clock.getElapsedTime();r.render(s,c)})();
+</script>
+</body>
+</html>
