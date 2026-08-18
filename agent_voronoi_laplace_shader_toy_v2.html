@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Agent Voronoi Laplace Shader Toy</title>
+<style>
+:root{
+  --bg:#090b14;--panel:#111528;--panel2:#171d35;--text:#eef2ff;--muted:#9ca8cc;
+  --a:#76f7ff;--b:#ff69d4;--c:#ffd166;--d:#8aff80;
+}
+*{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 15% 10%,#202b58 0,#0b0e19 35%,#070910 72%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui}
+.app{min-height:100vh;display:grid;grid-template-rows:auto 1fr}
+header{display:flex;align-items:center;gap:12px;padding:11px 14px;background:#0b0e1ddd;border-bottom:1px solid #2a3156;backdrop-filter:blur(12px)}
+.logo{font-weight:900;letter-spacing:.05em}.pill{padding:5px 9px;border-radius:999px;background:#20274a;color:#bcefff;font-size:12px}
+.tabs{display:flex;gap:6px;margin-left:auto}.tab{border:1px solid #31385f;background:#151a31;color:#b9c2e7;padding:8px 12px;border-radius:9px;cursor:pointer}.tab.active{background:linear-gradient(135deg,#203a64,#382652);color:white;border-color:#6e82c6}
+main{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:12px;padding:12px;min-height:0}
+.stage{position:relative;min-height:640px;border-radius:18px;overflow:hidden;border:1px solid #2a3156;background:#02040a;box-shadow:0 18px 70px #0008}
+canvas#gl{width:100%;height:100%;display:block}
+.hud{position:absolute;left:13px;top:13px;display:flex;gap:8px;pointer-events:none;flex-wrap:wrap}
+.hud span{background:#0a0d1bc9;border:1px solid #3a436f;padding:6px 9px;border-radius:8px;font-size:12px}
+.panel{display:flex;flex-direction:column;gap:12px;overflow:auto}
+.card{background:linear-gradient(180deg,#151a31e8,#101426e8);border:1px solid #2a3156;border-radius:15px;padding:13px}
+.card h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#afc2ff}
+.row{display:grid;grid-template-columns:1fr 84px;gap:8px;align-items:center;margin:8px 0}.row label{font-size:12px;color:#c8d1ef}
+input[type=range]{width:100%;accent-color:#80f4ff}.value{font:12px ui-monospace,monospace;color:#89f5ff;text-align:right}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button{border:1px solid #394269;border-radius:10px;background:#1a2140;color:#eaf0ff;padding:9px;cursor:pointer}button:hover{filter:brightness(1.2)}
+.toggle.active{background:linear-gradient(135deg,#126b83,#693566)}
+.graph{height:130px;width:100%;background:#090c18;border-radius:10px;border:1px solid #252d50}
+.legend{display:flex;gap:10px;flex-wrap:wrap;color:#aab5d8;font-size:11px;margin-top:7px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.note{font-size:11px;line-height:1.45;color:#9da9cc}
+@media(max-width:900px){main{grid-template-columns:1fr}.stage{min-height:58vh}.panel{overflow:visible}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="logo">VORO // AGENT FIELD</div>
+  <span class="pill">Laplace + agents + Voronoi tracking</span>
+  <div class="tabs">
+    <button class="tab active" data-tab="image">Image</button>
+    <button class="tab" data-tab="a">Buffer A</button>
+    <button class="tab" data-tab="b">Buffer B</button>
+  </div>
+</header>
+<main>
+<section class="stage">
+  <canvas id="gl"></canvas>
+  <div class="hud">
+    <span id="hudMode">IMAGE / composite</span>
+    <span id="hudAgent">agents 64</span>
+    <span id="hudField">smell 0.55</span>
+    <span id="hudMob">mobility ×1.00</span>
+    <span id="hudNum">number 0.00</span>
+    <span>drag = head tracking</span>
+  </div>
+</section>
+<aside class="panel">
+  <div class="card" id="imageCard">
+    <h3>Image · color + helpers</h3>
+    <div class="row"><label>Smell length</label><span class="value" id="vSmell"></span><input id="smell" type="range" min=".05" max="1.5" step=".01" value=".55" style="grid-column:1/3"></div>
+    <div class="row"><label>Angle gain</label><span class="value" id="vAngle"></span><input id="angle" type="range" min="0" max="6.28" step=".01" value="2.10" style="grid-column:1/3"></div>
+    <div class="grid2">
+      <button class="toggle active" id="showVor">Voronoi cells</button>
+      <button class="toggle active" id="showVec">Vector helpers</button>
+      <button class="toggle active" id="showSmell">Smell rays</button>
+      <button class="toggle active" id="showHead">Head plane</button>
+    </div>
+  </div>
+  <div class="card" id="aCard">
+    <h3>Buffer A · agent state</h3>
+    <div class="row"><label>Agent count</label><span class="value" id="vAgents"></span><input id="agents" type="range" min="8" max="128" step="1" value="64" style="grid-column:1/3"></div>
+    <div class="row"><label>Movement gain</label><span class="value" id="vMove"></span><input id="move" type="range" min=".05" max="2.2" step=".01" value=".72" style="grid-column:1/3"></div>
+    <div class="row"><label>Idea curl</label><span class="value" id="vIdea"></span><input id="idea" type="range" min="0" max="3" step=".01" value="1.15" style="grid-column:1/3"></div>
+    <button id="reset">Reseed state</button>
+  </div>
+  <div class="card" id="mobilityCard">
+    <h3>Rechts · mobility under numbers</h3>
+    <div class="row"><label>Numeric mobility</label><span class="value" id="vMobility"></span><input id="mobility" type="range" min="0" max="1.5" step=".01" value=".85" style="grid-column:1/3"></div>
+    <div class="row"><label>Number pressure</label><span class="value" id="vPressure"></span><input id="pressure" type="range" min="0" max="3" step=".01" value="1.20" style="grid-column:1/3"></div>
+    <div class="row"><label>Calculation steps</label><span class="value" id="vSteps"></span><input id="steps" type="range" min="2" max="32" step="1" value="12" style="grid-column:1/3"></div>
+    <div class="row"><label>Mobility floor</label><span class="value" id="vFloor"></span><input id="floor" type="range" min=".05" max="1" step=".01" value=".28" style="grid-column:1/3"></div>
+    <div class="grid2">
+      <button class="toggle active" id="numberQuant">Quantized numbers</button>
+      <button class="toggle active" id="numberOverlay">Number overlay</button>
+    </div>
+    <p class="note">Mobility is calculated per agent from its numeric identity, phase, heading load and pointer pressure. The result is quantized into the selected number of steps, then used as an actual speed multiplier.</p>
+  </div>
+  <div class="card" id="bCard">
+    <h3>Buffer B · diffusion / trail</h3>
+    <div class="row"><label>Laplace diffusion</label><span class="value" id="vDiff"></span><input id="diff" type="range" min="0" max="1" step=".005" value=".23" style="grid-column:1/3"></div>
+    <div class="row"><label>Trail decay</label><span class="value" id="vDecay"></span><input id="decay" type="range" min=".85" max=".999" step=".001" value=".965" style="grid-column:1/3"></div>
+    <div class="row"><label>Deposit</label><span class="value" id="vDeposit"></span><input id="deposit" type="range" min=".05" max="2" step=".01" value=".8" style="grid-column:1/3"></div>
+  </div>
+  <div class="card">
+    <h3>Live regime graph</h3>
+    <canvas class="graph" id="graph" width="300" height="130"></canvas>
+    <div class="legend">
+      <span><i class="dot" style="background:#76f7ff"></i>speed</span>
+      <span><i class="dot" style="background:#ff69d4"></i>trail</span>
+      <span><i class="dot" style="background:#ffd166"></i>curl</span>
+      <span><i class="dot" style="background:#8aff80"></i>numeric mobility</span>
+    </div>
+    <p class="note">Image composes the state planes. Buffer A exposes movement/head/idea structure. Buffer B exposes the Laplacian trail field. Pointer attraction acts like a head-tracking target. The Rechts mobility regime numerically calculates each agent's speed multiplier before motion is resolved.</p>
+  </div>
+</aside>
+</main>
+</div>
+
+<script>
+const canvas=document.getElementById('gl');
+const gl=canvas.getContext('webgl2',{antialias:false});
+if(!gl) alert('WebGL2 is required.');
+const vs=`#version 300 es
+precision highp float;
+out vec2 uv;
+void main(){
+ vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);
+ uv=p*.5; gl_Position=vec4(p-1.,0,1);
+}`;
+const fs=`#version 300 es
+precision highp float;
+out vec4 fragColor;
+in vec2 uv;
+uniform vec2 uRes,uMouse;
+uniform float uTime,uSmell,uAngle,uMove,uIdea,uDiff,uDecay,uDeposit;
+uniform float uMobility,uPressure,uSteps,uFloor,uQuantized,uNumberOverlay;
+uniform int uAgents,uMode;
+uniform vec4 uFlags;
+
+float hash11(float p){return fract(sin(p*127.1)*43758.5453123);}
+vec2 hash21(float p){return fract(sin(vec2(p*127.1,p*311.7))*43758.5453);}
+vec3 pal(float t){return .5+.5*cos(6.28318*(vec3(.05,.35,.67)+t*vec3(.7,.9,1.15)));}
+
+float numberMobility(float id, vec2 seed){
+ // "Mobility under numbers": deterministic numeric state becomes motion.
+ float identity = fract((id + 1.0) * 0.61803398875);
+ float phaseLoad = .5 + .5*sin(uTime*(.27 + identity*.31) + id*1.731 + uIdea);
+ vec2 mouse=uMouse/uRes;
+ float pointerLoad = exp(-dot(mouse-seed,mouse-seed)*4.0);
+ float headingLoad = .5 + .5*cos(id*.73 + uAngle + uTime*.19);
+ float n = (identity*.34 + phaseLoad*.31 + pointerLoad*.20 + headingLoad*.15);
+ n = pow(clamp(n,0.,1.), max(.15,uPressure));
+ float steps=max(2.,uSteps);
+ float q=floor(n*steps+.5)/steps;
+ n=mix(n,q,uQuantized);
+ return mix(1.0, max(uFloor,n*1.72), clamp(uMobility,0.,1.5));
+}
+vec2 agentPos(float id){
+ vec2 seed=hash21(id+13.7);
+ float ph=hash11(id+5.)*6.28318;
+ vec2 c=seed*.84+.08;
+ vec2 mouse=uMouse/uRes;
+ vec2 toM=mouse-c;
+ float attract=exp(-dot(toM,toM)*3.0);
+ float wob=.035+.045*hash11(id*2.1);
+ float mobility=numberMobility(id,c);
+ float a=uTime*(.16+.38*hash11(id*7.3))*uMove*mobility+ph+
+         uIdea*.25*sin(uTime*.17*mobility+id);
+ c+=wob*vec2(cos(a),sin(a));
+ // pointer/head tracking also obeys calculated mobility
+ c+=toM*.10*attract*mix(.45,1.25,mobility/1.72);
+ return fract(c);
+}
+float agentAng(float id,vec2 p){
+ float e=.003;
+ vec2 q=agentPos(id);
+ vec2 q2=fract(q+e*vec2(cos(uTime+id),sin(uTime*.71+id*1.7)));
+ return atan(q2.y-q.y,q2.x-q.x)+uAngle*.08;
+}
+float trail(vec2 p){
+ float v=0.;
+ for(int i=0;i<128;i++){
+  if(i>=uAgents) break;
+  vec2 a=agentPos(float(i));
+  vec2 d=p-a; d-=round(d);
+  float r=length(d);
+  v+=exp(-r*r*(140.+90.*uSmell))*uDeposit;
+ }
+ v/=sqrt(float(uAgents));
+ float lap=sin((p.x+p.y)*34.+uTime)*sin((p.x-p.y)*29.-uTime*.7);
+ return max(0.,v*(uDecay)+uDiff*.12*lap);
+}
+
+void main(){
+ vec2 p=uv;
+ float best=10.,second=10.,bid=0.;
+ for(int i=0;i<128;i++){
+  if(i>=uAgents) break;
+  vec2 a=agentPos(float(i));
+  vec2 d=p-a; d-=round(d);
+  float dd=dot(d,d);
+  if(dd<best){second=best;best=dd;bid=float(i);}
+  else if(dd<second) second=dd;
+ }
+ vec2 ap=agentPos(bid), d=p-ap; d-=round(d);
+ float dist=sqrt(best);
+ float edge=smoothstep(.003,.0005,sqrt(second)-sqrt(best));
+ float tr=trail(p);
+ float ang=agentAng(bid,p);
+ vec2 dir=vec2(cos(ang),sin(ang));
+ float head=max(0.,dot(normalize(d+1e-5),dir));
+ float ray=exp(-abs(cross(vec3(normalize(d+1e-5),0),vec3(dir,0)).z)*80.)*
+           step(dist,uSmell*.18)*step(.001,dist)*head;
+ float dotAgent=smoothstep(.012,.003,dist);
+ float vecMark=smoothstep(.008,.001,abs(dot(d,vec2(-dir.y,dir.x))))*
+               step(0.,dot(d,dir))*step(dist,.055);
+ vec3 base=pal(fract(bid*.073+tr*.12+uTime*.015));
+ vec3 col=.12*base+.38*pal(tr*.10+dist*2.);
+ col+=tr*.24*vec3(.35,.8,1.2);
+ if(uFlags.x>.5) col+=edge*.52*pal(bid*.09);
+ if(uFlags.y>.5) col+=vecMark*.65*vec3(.6,1.,.86);
+ if(uFlags.z>.5) col+=ray*.75*vec3(1.,.25,.78);
+ if(uFlags.w>.5) col+=pow(head,18.)*.18*vec3(1.,.8,.25);
+ col+=dotAgent*(1.4*pal(bid*.13)+.4);
+
+ // Numerical mobility overlay: rings encode discrete calculation levels.
+ float nm=numberMobility(bid,ap);
+ float nNorm=clamp((nm-uFloor)/max(.01,1.72-uFloor),0.,1.);
+ float numbered=abs(fract(dist*(24.+uSteps*.7))-0.5);
+ float numberRing=smoothstep(.10,.02,numbered)*smoothstep(.16,.015,dist);
+ if(uNumberOverlay>.5){
+   col+=numberRing*nNorm*.46*vec3(.45,1.0,.35);
+   col+=dotAgent*nNorm*.35*vec3(.7,1.,.45);
+ }
+
+ if(uMode==1){ // Buffer A
+   vec3 state=pal(bid*.11);
+   state=mix(state,vec3(.05,.08,.16),smoothstep(.0,.12,dist));
+   state+=dotAgent*1.4+vecMark*vec3(.2,1.,.8)+pow(head,16.)*.35*vec3(1.,.5,.15);
+   state+=numberRing*nNorm*vec3(.25,1.,.18);
+   col=state;
+ }
+ if(uMode==2){ // Buffer B
+   float gx=trail(fract(p+vec2(.004,0)))-trail(fract(p-vec2(.004,0)));
+   float gy=trail(fract(p+vec2(0,.004)))-trail(fract(p-vec2(0,.004)));
+   float lap=trail(fract(p+vec2(.006,0)))+trail(fract(p-vec2(.006,0)))+
+             trail(fract(p+vec2(0,.006)))+trail(fract(p-vec2(0,.006)))-4.*tr;
+   col=pal(tr*.08+lap*.9+uTime*.01)*(.2+.9*clamp(tr,0.,1.3));
+   col+=.35*vec3(abs(gx),abs(gy),abs(gx-gy))*6.;
+ }
+ // pointer plane / head tracker
+ vec2 m=uMouse/uRes;
+ float mr=length((p-m)*vec2(uRes.x/uRes.y,1.));
+ col+=smoothstep(.04,.0,abs(mr-.028))*.55*vec3(.3,1.,1.);
+ fragColor=vec4(pow(max(col,0.),vec3(.82)),1.);
+}`;
+function sh(type,src){let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw gl.getShaderInfoLog(s);return s}
+const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);
+if(!gl.getProgramParameter(pr,gl.LINK_STATUS)) throw gl.getProgramInfoLog(pr);
+gl.useProgram(pr);
+
+const U={};['uRes','uMouse','uTime','uSmell','uAngle','uMove','uIdea','uDiff','uDecay','uDeposit','uMobility','uPressure','uSteps','uFloor','uQuantized','uNumberOverlay','uAgents','uMode','uFlags'].forEach(n=>U[n]=gl.getUniformLocation(pr,n));
+let mouse=[320,240], dragging=false, mode=0, flags=[1,1,1,1], epoch=performance.now();
+
+function resize(){
+ const d=Math.min(devicePixelRatio||1,1.7),r=canvas.getBoundingClientRect();
+ const w=Math.max(2,Math.floor(r.width*d)),h=Math.max(2,Math.floor(r.height*d));
+ if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h)}
+}
+canvas.addEventListener('pointerdown',e=>{dragging=true;canvas.setPointerCapture(e.pointerId);setMouse(e)});
+canvas.addEventListener('pointermove',e=>{if(dragging)setMouse(e)});
+canvas.addEventListener('pointerup',()=>dragging=false);
+function setMouse(e){let r=canvas.getBoundingClientRect();mouse=[(e.clientX-r.left)*canvas.width/r.width,(r.bottom-e.clientY)*canvas.height/r.height]}
+
+const cfg={smell:.55,angle:2.1,agents:64,move:.72,idea:1.15,diff:.23,decay:.965,deposit:.8,mobility:.85,pressure:1.20,steps:12,floor:.28};
+let numericFlags={quantized:1,overlay:1};
+function bind(id,key,digits=2){
+ const el=document.getElementById(id),out=document.getElementById('v'+id[0].toUpperCase()+id.slice(1));
+ const sync=()=>{cfg[key]=+el.value;out.textContent=(key==='agents'?cfg[key]:cfg[key].toFixed(digits)); if(key==='agents')document.getElementById('hudAgent').textContent='agents '+cfg[key];if(key==='smell')document.getElementById('hudField').textContent='smell '+cfg[key].toFixed(2)}
+ el.oninput=sync;sync();
+}
+bind('smell','smell');bind('angle','angle');bind('agents','agents',0);bind('move','move');bind('idea','idea');
+bind('mobility','mobility');bind('pressure','pressure');bind('steps','steps',0);bind('floor','floor');
+bind('diff','diff',3);bind('decay','decay',3);bind('deposit','deposit');
+document.getElementById('numberQuant').onclick=e=>{numericFlags.quantized=1-numericFlags.quantized;e.currentTarget.classList.toggle('active',!!numericFlags.quantized)};
+document.getElementById('numberOverlay').onclick=e=>{numericFlags.overlay=1-numericFlags.overlay;e.currentTarget.classList.toggle('active',!!numericFlags.overlay)};
+['showVor','showVec','showSmell','showHead'].forEach((id,i)=>document.getElementById(id).onclick=e=>{flags[i]=1-flags[i];e.currentTarget.classList.toggle('active',!!flags[i])});
+document.getElementById('reset').onclick=()=>epoch=performance.now();
+document.querySelectorAll('.tab').forEach((b,i)=>b.onclick=()=>{
+ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');mode=i;
+ document.getElementById('hudMode').textContent=['IMAGE / composite','BUFFER A / state','BUFFER B / diffusion'][i];
+});
+
+const g=document.getElementById('graph'),gc=g.getContext('2d'), hist={s:[],t:[],c:[],m:[]};
+function graph(){
+ let t=(performance.now()-epoch)/1000;
+ hist.s.push(.48+.28*Math.sin(t*.8)*cfg.move/2.2);
+ hist.t.push(Math.min(1,.18+cfg.deposit*.24+cfg.diff*.25+.12*Math.sin(t*.55)));
+ hist.c.push(Math.min(1,cfg.idea/3*(.7+.25*Math.sin(t*.37))));
+ const numeric=.34+.31*(.5+.5*Math.sin(t*.27+cfg.idea))+.2*(.5+.5*Math.sin(t*.43))+ .15*(.5+.5*Math.cos(t*.19+cfg.angle));
+ const pressured=Math.pow(Math.max(0,Math.min(1,numeric)),Math.max(.15,cfg.pressure));
+ const quant=numericFlags.quantized?Math.round(pressured*cfg.steps)/cfg.steps:pressured;
+ const mob=Math.max(cfg.floor,quant*1.72);
+ hist.m.push(Math.min(1,mob/1.72));
+ document.getElementById('hudMob').textContent='mobility ×'+mob.toFixed(2);
+ document.getElementById('hudNum').textContent='number '+quant.toFixed(3);
+ for(let k in hist)if(hist[k].length>70)hist[k].shift();
+ gc.clearRect(0,0,g.width,g.height);gc.strokeStyle='#242c50';gc.lineWidth=1;
+ for(let y=26;y<130;y+=26){gc.beginPath();gc.moveTo(0,y);gc.lineTo(300,y);gc.stroke()}
+ const colors={s:'#76f7ff',t:'#ff69d4',c:'#ffd166',m:'#8aff80'};
+ for(let k in hist){let a=hist[k];gc.strokeStyle=colors[k];gc.lineWidth=2;gc.beginPath();a.forEach((v,i)=>{let x=i/(69)*300,y=125-v*110;i?gc.lineTo(x,y):gc.moveTo(x,y)});gc.stroke()}
+}
+setInterval(graph,180);
+
+function frame(now){
+ resize();gl.useProgram(pr);
+ gl.uniform2f(U.uRes,canvas.width,canvas.height);gl.uniform2f(U.uMouse,mouse[0],mouse[1]);
+ gl.uniform1f(U.uTime,(now-epoch)/1000);gl.uniform1f(U.uSmell,cfg.smell);gl.uniform1f(U.uAngle,cfg.angle);
+ gl.uniform1f(U.uMove,cfg.move);gl.uniform1f(U.uIdea,cfg.idea);gl.uniform1f(U.uDiff,cfg.diff);gl.uniform1f(U.uDecay,cfg.decay);gl.uniform1f(U.uDeposit,cfg.deposit);
+ gl.uniform1f(U.uMobility,cfg.mobility);gl.uniform1f(U.uPressure,cfg.pressure);gl.uniform1f(U.uSteps,cfg.steps);gl.uniform1f(U.uFloor,cfg.floor);
+ gl.uniform1f(U.uQuantized,numericFlags.quantized);gl.uniform1f(U.uNumberOverlay,numericFlags.overlay);
+ gl.uniform1i(U.uAgents,cfg.agents|0);gl.uniform1i(U.uMode,mode);gl.uniform4f(U.uFlags,...flags);
+ gl.drawArrays(gl.TRIANGLES,0,3);requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
