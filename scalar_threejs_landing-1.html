@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Scalar / Structure — Three.js Field Landing Page</title>
+<style>
+  :root{
+    --bg:#07090d;
+    --panel:rgba(14,18,27,.66);
+    --line:rgba(255,255,255,.10);
+    --soft:rgba(255,255,255,.68);
+    --text:#f4f7fb;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}
+  body:before{
+    content:"";position:fixed;inset:0;pointer-events:none;
+    background:
+      radial-gradient(circle at 18% 20%,rgba(93,111,255,.12),transparent 34%),
+      radial-gradient(circle at 78% 30%,rgba(255,126,219,.09),transparent 30%),
+      linear-gradient(to bottom,rgba(255,255,255,.015),transparent 30%);
+    z-index:0
+  }
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+  .page{position:relative;z-index:2;min-height:240vh;pointer-events:none}
+  nav{
+    position:fixed;top:18px;left:50%;transform:translateX(-50%);
+    width:min(1120px,calc(100% - 28px));
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 14px 12px 18px;border:1px solid var(--line);
+    background:rgba(8,11,17,.52);backdrop-filter:blur(18px);
+    border-radius:18px;pointer-events:auto;z-index:5
+  }
+  .brand{font-weight:700;letter-spacing:.08em;font-size:12px;text-transform:uppercase}
+  .brand span{opacity:.45}
+  .nav-right{display:flex;gap:8px;align-items:center}
+  .pill,.button{
+    border:1px solid var(--line);border-radius:999px;padding:9px 12px;
+    font-size:12px;color:var(--soft);background:rgba(255,255,255,.025)
+  }
+  .button{color:#111;background:#f7f8fb;font-weight:700}
+  .hero{
+    min-height:100vh;display:grid;align-items:center;
+    width:min(1180px,calc(100% - 38px));margin:auto;
+    grid-template-columns:1.15fr .85fr;gap:38px;padding-top:80px
+  }
+  .hero-copy{pointer-events:auto}
+  .eyebrow{
+    display:inline-flex;gap:9px;align-items:center;
+    color:rgba(255,255,255,.58);font-size:12px;letter-spacing:.12em;text-transform:uppercase
+  }
+  .eyebrow i{width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 24px rgba(255,255,255,.85)}
+  h1{
+    font-size:clamp(58px,8.8vw,132px);line-height:.83;letter-spacing:-.07em;
+    margin:24px 0 24px;max-width:900px;font-weight:760
+  }
+  .hero p{max-width:660px;color:var(--soft);font-size:18px;line-height:1.65}
+  .formula{
+    margin-top:26px;display:inline-flex;align-items:center;gap:14px;
+    padding:14px 16px;border:1px solid var(--line);border-radius:16px;
+    background:rgba(10,13,20,.48);backdrop-filter:blur(14px);
+    font-family:"SFMono-Regular",Consolas,monospace;font-size:13px
+  }
+  .formula b{font-size:18px;color:#fff}
+  .control-card{
+    pointer-events:auto;justify-self:end;width:min(410px,100%);
+    border:1px solid var(--line);border-radius:24px;padding:18px;
+    background:var(--panel);backdrop-filter:blur(22px);box-shadow:0 24px 90px rgba(0,0,0,.28)
+  }
+  .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .card-head strong{font-size:13px}
+  .live{font:11px "SFMono-Regular",monospace;color:rgba(255,255,255,.52)}
+  .meter{
+    position:relative;height:130px;border-radius:18px;overflow:hidden;
+    border:1px solid var(--line);background:rgba(255,255,255,.02);
+    display:flex;align-items:flex-end;padding:14px
+  }
+  .meter:before{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent 49.7%,rgba(255,255,255,.12) 50%,transparent 50.3%),
+               repeating-linear-gradient(0deg,transparent 0 25px,rgba(255,255,255,.035) 26px 27px);
+  }
+  .meter-value{position:relative;font-size:42px;letter-spacing:-.05em;font-weight:720}
+  .meter-sub{position:absolute;right:14px;bottom:16px;font-size:11px;color:rgba(255,255,255,.48)}
+  .row{margin-top:17px}
+  .label{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.58);margin-bottom:8px}
+  input[type=range]{width:100%;accent-color:white}
+  .modes{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:16px}
+  .mode{
+    padding:10px 6px;text-align:center;border-radius:11px;border:1px solid var(--line);
+    color:rgba(255,255,255,.55);font-size:10px;cursor:pointer;background:rgba(255,255,255,.02)
+  }
+  .mode.active{background:white;color:#0b0d11}
+  .section{
+    width:min(1120px,calc(100% - 38px));margin:auto;min-height:88vh;
+    display:flex;align-items:center
+  }
+  .story{max-width:690px;padding:50px 0}
+  .num{font:11px "SFMono-Regular",monospace;color:rgba(255,255,255,.38);letter-spacing:.15em}
+  h2{font-size:clamp(38px,6vw,84px);line-height:.95;letter-spacing:-.055em;margin:15px 0 24px}
+  .story p{font-size:17px;line-height:1.7;color:var(--soft)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+  .chip{font:11px "SFMono-Regular",monospace;padding:9px 11px;border:1px solid var(--line);border-radius:999px;color:rgba(255,255,255,.55)}
+  .right{margin-left:auto;text-align:right}
+  .right p{margin-left:auto}
+  .legend{
+    position:fixed;left:24px;bottom:24px;z-index:4;pointer-events:none;
+    font:10px "SFMono-Regular",monospace;color:rgba(255,255,255,.42)
+  }
+  .regime-map{
+    margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:8px
+  }
+  .regime-cell{
+    min-height:70px;border:1px solid var(--line);border-radius:14px;
+    padding:11px;background:rgba(255,255,255,.018)
+  }
+  .regime-cell b{display:block;font-size:11px;margin-bottom:6px}
+  .regime-cell span{display:block;font:10px/1.45 "SFMono-Regular",monospace;color:rgba(255,255,255,.46)}
+  .laplace-box{
+    margin-top:20px;padding:15px 16px;border-left:2px solid rgba(255,255,255,.65);
+    background:linear-gradient(90deg,rgba(255,255,255,.05),transparent);
+    color:rgba(255,255,255,.68);font:12px/1.7 "SFMono-Regular",monospace
+  }
+  .legend b{color:rgba(255,255,255,.8)}
+  @media(max-width:850px){
+    .hero{grid-template-columns:1fr;padding-top:115px;align-content:center}
+    .control-card{justify-self:stretch}
+    h1{font-size:clamp(56px,18vw,96px)}
+    .hero p{font-size:16px}
+    .section{min-height:82vh}
+    .right{text-align:left;margin-left:0}
+    .right p{margin-left:0}
+    .pill{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<nav>
+  <div class="brand">SCALAR <span>/ STRUCTURE</span></div>
+  <div class="nav-right">
+    <div class="pill">Three.js field study</div>
+    <div class="button">Voronoi →</div>
+  </div>
+</nav>
+
+<div class="page">
+  <section class="hero">
+    <div class="hero-copy">
+      <div class="eyebrow"><i></i> scalar regimes / visual field laboratory</div>
+      <h1>One number.<br/>A whole world bends.</h1>
+      <p>
+        A scalar has no direction, yet its magnitude can govern scale, density, curvature,
+        emissive energy, displacement and the borders between structures. This page turns that
+        standard notion into a spatial experiment.
+      </p>
+      <div class="formula"><b>φ</b><span>→</span><span>structure( position, φ )</span></div>
+    </div>
+
+    <aside class="control-card">
+      <div class="card-head"><strong>Scalar actuator</strong><span class="live">LIVE FIELD</span></div>
+      <div class="meter">
+        <div class="meter-value" id="readout">1.00</div>
+        <div class="meter-sub" id="regimeLabel">LINEAR</div>
+      </div>
+      <div class="row">
+        <div class="label"><span>φ magnitude</span><span id="scalarMini">1.00</span></div>
+        <input id="scalar" type="range" min="-3" max="7" value="0" step="0.01"/>
+      </div>
+      <div class="modes">
+        <button class="mode active" data-mode="linear">linear</button>
+        <button class="mode" data-mode="signed">signed</button>
+        <button class="mode" data-mode="limit">limit</button>
+        <button class="mode" data-mode="infinity">∞</button>
+      </div>
+    </aside>
+  </section>
+
+  <section class="section">
+    <div class="story">
+      <div class="num">01 / STANDARD NOTION</div>
+      <h2>Magnitude becomes geometry.</h2>
+      <p>
+        Start simply: φ multiplies displacement. Small values flatten the lattice; larger values
+        amplify peaks, spacing and apparent energy. No mystery is required—only a scalar sampled
+        by a structure.
+      </p>
+      <div class="chips"><span class="chip">position × φ</span><span class="chip">height × φ</span><span class="chip">energy × |φ|</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="story right">
+      <div class="num">02 / THE MYSTERY APPEARS</div>
+      <h2>The scalar stops being “just scale.”</h2>
+      <p>
+        Once φ also controls frequency and cell influence, the same number changes which regions
+        belong together. Boundaries drift. Peaks trade ownership. A field now behaves like an
+        argument about structure.
+      </p>
+      <div class="chips"><span class="chip">frequency</span><span class="chip">cell pressure</span><span class="chip">boundary drift</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="story">
+      <div class="num">03 / VORONOI APPROACH</div>
+      <h2>Infinity is a regime, not a crash.</h2>
+      <p>
+        A literal numerical infinity destroys useful geometry. Here the “∞” regime maps unbounded
+        scalar intent through a stable asymptotic transform. The visible effect keeps intensifying,
+        while the simulation remains finite: cells sharpen, voids deepen, and the field approaches
+        a limiting form.
+      </p>
+      <div class="chips"><span class="chip">φ → ∞</span><span class="chip">tanh / asymptote</span><span class="chip">Voronoi limit field</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="story right">
+      <div class="num">04 / LAPLACE BETWEEN CHAMBERS</div>
+      <h2>Cells do not merely border. They negotiate.</h2>
+      <p>
+        The next regime treats each Voronoi region as a local scalar chamber. A discrete Laplace
+        pressure compares one chamber against its neighbors. Where the difference is small the
+        membrane relaxes; where it is large a crevice opens, producing ridges, troughs and echo-like
+        separation between two nearby ownership fields.
+      </p>
+      <div class="regime-map">
+        <div class="regime-cell"><b>MAXIMUM</b><span>local φ dominates / ridge rises</span></div>
+        <div class="regime-cell"><b>MINIMUM</b><span>local φ yields / cavity deepens</span></div>
+        <div class="regime-cell"><b>CREVICE</b><span>|φₐ−φᵦ| opens interface</span></div>
+        <div class="regime-cell"><b>ECHO</b><span>neighbor pressure recirculates</span></div>
+      </div>
+      <div class="laplace-box">Δφ ≈ φₙ + φₛ + φₑ + φ𝓌 − 4φ₀<br/>geometry ← geometry + λ·Δφ</div>
+    </div>
+  </section>
+</div>
+
+<div class="legend"><b>SCROLL</b> changes field depth · <b>DRAG</b> scalar actuator</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js';
+
+const canvas = document.querySelector('#scene');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x07090d, .095);
+
+const camera = new THREE.PerspectiveCamera(48, innerWidth/innerHeight, .1, 100);
+camera.position.set(0, 3.4, 8.5);
+camera.lookAt(0,0,0);
+
+const uniforms = {
+  uTime:{value:0},
+  uScalar:{value:1},
+  uRegime:{value:0},
+  uScroll:{value:0}
+};
+
+const vertex = `
+uniform float uTime;
+uniform float uScalar;
+uniform float uRegime;
+uniform float uScroll;
+varying vec2 vUv;
+varying float vH;
+varying float vEdge;
+varying float vLaplace;
+varying vec3 vPos;
+
+float hash21(vec2 p){
+  p = fract(p*vec2(123.34,456.21));
+  p += dot(p,p+45.32);
+  return fract(p.x*p.y);
+}
+vec2 hash22(vec2 p){
+  float n = hash21(p);
+  return vec2(n, hash21(p+n+17.7));
+}
+
+vec2 voronoiPair(vec2 x){
+  vec2 n=floor(x), f=fract(x);
+  float d1=8.0;
+  float d2=8.0;
+  for(int j=-1;j<=1;j++){
+    for(int i=-1;i<=1;i++){
+      vec2 g=vec2(float(i),float(j));
+      vec2 o=hash22(n+g);
+      o=.5+.5*sin(uTime*.25+6.2831*o);
+      vec2 r=g+o-f;
+      float d=dot(r,r);
+      if(d<d1){ d2=d1; d1=d; }
+      else if(d<d2){ d2=d; }
+    }
+  }
+  return sqrt(vec2(d1,d2));
+}
+
+float chamberField(vec2 x, float freq){
+  vec2 vp=voronoiPair(x*freq);
+  float ownership = 1.0-smoothstep(.08,.70,vp.x);
+  float border = exp(-18.0*abs(vp.y-vp.x));
+  return ownership - border*.42;
+}
+
+void main(){
+  vUv=uv;
+  vec3 p=position;
+
+  float raw = uScalar;
+  float safeInf = 1.0 + 8.75*tanh(abs(raw)*0.24);
+  float signedScalar = sign(raw)*safeInf;
+  float phi = raw;
+
+  if(uRegime > .5 && uRegime < 1.5) phi = signedScalar;
+  if(uRegime > 1.5 && uRegime < 2.5) phi = 3.7*tanh(raw*.55);
+  if(uRegime > 2.5) phi = safeInf;
+
+  float freq = 1.25 + abs(phi)*.23 + uScroll*1.75;
+  vec2 q = p.xz + vec2(0.0,uTime*.035);
+
+  vec2 vp = voronoiPair(q*freq);
+  float nearest = vp.x;
+  float second = vp.y;
+  float boundary = exp(-22.0*abs(second-nearest));
+  float cell = 1.0-smoothstep(.08,.67,nearest);
+
+  // Discrete Laplace sample over the scalar chamber field.
+  float eps = .055 + .015/(1.0+freq);
+  float c = chamberField(q,freq);
+  float e = chamberField(q+vec2(eps,0.0),freq);
+  float w = chamberField(q-vec2(eps,0.0),freq);
+  float n = chamberField(q+vec2(0.0,eps),freq);
+  float s = chamberField(q-vec2(0.0,eps),freq);
+  float lap = e+w+n+s-4.0*c;
+
+  float waves = sin(p.x*1.8 + uTime*.58)*cos(p.z*1.42-uTime*.31);
+  float amp = .18 + .15*min(abs(phi),6.0);
+
+  float ridge = cell*amp;
+  float crevice = -boundary*(.14 + .11*min(abs(phi),5.0));
+  float laplaceLift = lap*(.55 + .12*min(abs(phi),6.0));
+
+  float h = ridge + crevice + laplaceLift + waves*.075*phi;
+
+  // Infinity regime: asymptotically sharpen ownership and deepen interfaces.
+  if(uRegime > 2.5){
+    float singular = pow(max(0.0,1.0-nearest),5.0);
+    float moat = pow(boundary,2.0);
+    h += singular*1.45 - moat*.48;
+  }
+
+  p.y += h;
+  p.xz *= 1.0 + .022*phi;
+
+  vH=h;
+  vEdge=boundary;
+  vLaplace=lap;
+  vPos=p;
+  gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);
+}
+`;
+
+const fragment = `
+uniform float uTime;
+uniform float uScalar;
+uniform float uRegime;
+varying vec2 vUv;
+varying float vH;
+varying float vEdge;
+varying float vLaplace;
+varying vec3 vPos;
+
+void main(){
+  float glow = smoothstep(-.28,1.45,vH);
+  float rings = .5+.5*sin(vPos.x*2.6+vPos.z*2.1-uTime*.35);
+  float lapEnergy = smoothstep(.0,.6,abs(vLaplace));
+
+  vec3 cold = vec3(.045,.10,.23);
+  vec3 hot  = vec3(.80,.30,.90);
+  vec3 pale = vec3(.89,.96,1.0);
+  vec3 edgeTone = vec3(.32,.86,1.0);
+
+  vec3 col = mix(cold,hot,glow);
+  col = mix(col,pale,pow(glow,3.0)*.32);
+  col = mix(col,edgeTone,vEdge*.58);
+  col += lapEnergy*vec3(.08,.045,.12);
+  col += rings*.022;
+
+  float edgeFade = smoothstep(1.25,.15,length(vUv-.5));
+  float alpha = .18 + .74*edgeFade;
+  gl_FragColor=vec4(col,alpha);
+}
+`;
+
+const geo = new THREE.PlaneGeometry(11,11,220,220);
+geo.rotateX(-Math.PI/2);
+const mat = new THREE.ShaderMaterial({
+  vertexShader:vertex, fragmentShader:fragment, uniforms,
+  transparent:true, side:THREE.DoubleSide, depthWrite:false,
+  wireframe:false
+});
+const mesh = new THREE.Mesh(geo,mat);
+scene.add(mesh);
+
+const wireMat = new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:.055});
+const wire = new THREE.Mesh(geo,wireMat);
+wire.position.y=.018;
+scene.add(wire);
+
+const ptsGeo = new THREE.BufferGeometry();
+const N=700;
+const pos = new Float32Array(N*3);
+for(let i=0;i<N;i++){
+  pos[i*3]=(Math.random()-.5)*12;
+  pos[i*3+1]=Math.random()*5-1;
+  pos[i*3+2]=(Math.random()-.5)*12;
+}
+ptsGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+const pts = new THREE.Points(ptsGeo,new THREE.PointsMaterial({size:.018,color:0xffffff,transparent:true,opacity:.35,depthWrite:false}));
+scene.add(pts);
+
+const scalar = document.querySelector('#scalar');
+const readout = document.querySelector('#readout');
+const mini = document.querySelector('#scalarMini');
+const regimeLabel = document.querySelector('#regimeLabel');
+let mode = 'linear';
+
+function interpreted(){
+  const x=Number(scalar.value);
+  if(mode==='linear') return Math.exp(x*.34);
+  if(mode==='signed') return (x<0?-1:1)*(1+Math.abs(x)*.68);
+  if(mode==='limit') return 3.5*Math.tanh(x*.55);
+  return 1+7.5*Math.tanh(Math.abs(x)*.27);
+}
+function updateUI(){
+  let value=interpreted();
+  uniforms.uScalar.value=value;
+  readout.textContent = mode==='infinity' && Number(scalar.value)>5.7 ? '∞' : value.toFixed(2);
+  mini.textContent = value.toFixed(2);
+  regimeLabel.textContent = mode.toUpperCase();
+}
+scalar.addEventListener('input',updateUI);
+
+const modes=[...document.querySelectorAll('.mode')];
+modes.forEach((b,i)=>b.addEventListener('click',()=>{
+  modes.forEach(x=>x.classList.remove('active')); b.classList.add('active');
+  mode=b.dataset.mode; uniforms.uRegime.value=i; updateUI();
+}));
+updateUI();
+
+addEventListener('scroll',()=>{
+  const s=scrollY/Math.max(1,document.body.scrollHeight-innerHeight);
+  uniforms.uScroll.value=s;
+});
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+let mx=0,my=0;
+addEventListener('pointermove',e=>{
+  mx=(e.clientX/innerWidth-.5);
+  my=(e.clientY/innerHeight-.5);
+});
+
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  uniforms.uTime.value=clock.getElapsedTime();
+  const scroll=uniforms.uScroll.value;
+  camera.position.x += (mx*1.1-camera.position.x)*.018;
+  camera.position.y += ((3.4-scroll*1.25)+(-my*.4)-camera.position.y)*.018;
+  camera.position.z += ((8.5-scroll*2.0)-camera.position.z)*.018;
+  camera.lookAt(0,-.15,0);
+  mesh.rotation.y=.08*Math.sin(uniforms.uTime.value*.12);
+  wire.rotation.y=mesh.rotation.y;
+  pts.rotation.y=-uniforms.uTime.value*.015;
+  wire.material.opacity = .035 + .045*Math.min(1, Math.abs(uniforms.uScalar.value)/6);
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
