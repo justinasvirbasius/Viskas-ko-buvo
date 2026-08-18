@@ -1,0 +1,1995 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>ET Cartographer // Proto Sustenance</title>
+<style>
+:root{
+  --edge:clamp(10px,2vw,30px);
+  --panel:min(390px,calc(100vw - 2*var(--edge)));
+  --ink:#c5cbc4;
+  --muted:#7a827a;
+  --line:rgba(190,205,190,.16);
+  --panelbg:rgba(8,11,9,.88);
+  --good:#b8c7b7;
+  --warn:#c9bca5;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#070908;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+button{font:inherit}
+#world{position:fixed;inset:0}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.panel{position:fixed;z-index:10;width:var(--panel);border:1px solid var(--line);background:var(--panelbg);backdrop-filter:blur(14px);box-shadow:0 20px 65px rgba(0,0,0,.32)}
+#cartographer{left:var(--edge);top:var(--edge);padding:18px;max-height:calc(100vh - 2*var(--edge));overflow:auto}
+#commandPanel{right:var(--edge);top:var(--edge);padding:18px;max-height:calc(100vh - 2*var(--edge));overflow:auto;display:none}
+#commandPanel.visible{display:block}
+.label{font-size:9px;letter-spacing:.24em;color:var(--muted)}
+h1{font-size:clamp(18px,2.2vw,27px);font-weight:400;letter-spacing:.07em;margin:12px 0 7px}
+#description{font-size:11px;line-height:1.65;color:#8b938a;margin-bottom:14px}
+.menu-button{width:100%;display:block;text-align:left;color:#b4bbb3;background:transparent;border:0;border-top:1px solid var(--line);padding:12px 9px;cursor:pointer;transition:.15s}
+.menu-button:last-child{border-bottom:1px solid var(--line)}
+.menu-button:hover,.menu-button.active{background:rgba(180,200,180,.06);padding-left:16px;color:#edf0ec}
+.menu-button small{display:block;margin-top:4px;color:#707870;font-size:9px;line-height:1.45}
+.command-title{font-size:16px;margin:10px 0 4px}
+.block{border-top:1px solid var(--line);padding:10px 0}
+.block-name{font-size:8px;letter-spacing:.18em;color:#747d74;margin-bottom:5px}
+.block-value{font-size:10px;line-height:1.55;color:#bac1b9}
+.support-chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{padding:5px 7px;border:1px solid var(--line);font-size:8px;color:#969e96}
+.ledger-row,.property-row{display:grid;grid-template-columns:92px 1fr 44px;gap:7px;align-items:center;margin:7px 0;font-size:8px}
+.bar{height:3px;background:rgba(255,255,255,.07);overflow:hidden}
+.fill{height:100%;background:currentColor}
+.delta.pos{color:#b8c9b6}.delta.neg{color:#c6b0a4}
+#execute{width:100%;padding:12px;margin-top:10px;border:1px solid rgba(200,215,200,.24);background:rgba(170,190,170,.08);color:#e4e8e3;letter-spacing:.14em;cursor:pointer}
+#execute:disabled{opacity:.28;cursor:not-allowed}
+#scalar{
+  position:fixed;z-index:25;left:50%;bottom:max(10px,env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:3px;padding:5px;
+  width:min(340px,calc(100vw - 16px));
+  border:1px solid var(--line);
+  background:rgba(7,9,8,.92);
+  backdrop-filter:blur(10px);
+  touch-action:none;
+  overscroll-behavior:contain;
+}
+.scalar-step{
+  min-width:0;width:auto;padding:8px 2px;border:0;background:transparent;
+  color:#656d65;font-size:8px;cursor:pointer;white-space:nowrap;
+  touch-action:manipulation;
+}
+.scalar-step.active{background:rgba(185,200,185,.11);color:#e2e7e1}
+#status{position:fixed;z-index:9;right:var(--edge);bottom:18px;text-align:right;color:#697269;font-size:8px;letter-spacing:.1em;line-height:1.6;pointer-events:none}
+#toast{position:fixed;z-index:30;left:50%;top:18px;transform:translateX(-50%) translateY(-15px);opacity:0;padding:9px 12px;border:1px solid var(--line);background:rgba(7,9,8,.94);font-size:9px;letter-spacing:.08em;transition:.2s;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#grain{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:.09;background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,rgba(255,255,255,.03) 4px)}
+#history{margin-top:10px}
+.history-item{border-top:1px solid var(--line);padding:8px 0;font-size:8px;line-height:1.5;color:#899089}
+.neck-note{font-size:9px;color:#9ca49b;line-height:1.55}
+@media (max-aspect-ratio:4/5){
+  #cartographer{
+    width:calc(100vw - 2*var(--edge));
+    max-height:30dvh;
+    overscroll-behavior:contain;
+  }
+  #commandPanel{
+    top:auto;left:var(--edge);right:auto;
+    bottom:calc(66px + env(safe-area-inset-bottom));
+    width:calc(100vw - 2*var(--edge));
+    max-height:34dvh;
+    overscroll-behavior:contain;
+  }
+  #status{display:none}
+  #scalar{
+    width:calc(100vw - 12px);
+    max-width:none;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:2px;
+    padding:4px;
+  }
+  .scalar-step{
+    font-size:7px;
+    padding:8px 1px;
+    line-height:1.25;
+  }
+}
+@media (max-width:420px){
+  #scalar{width:calc(100vw - 8px)}
+  .scalar-step{font-size:6.8px;letter-spacing:-.01em}
+}
+@media (min-aspect-ratio:2/1){
+  #cartographer,#commandPanel{width:min(330px,24vw)}
+}
+
+/* ---------- DIMENSION POP-OUTS / OPERATIONS ---------- */
+#dimensionLayer{
+  position:fixed; inset:0; z-index:18; pointer-events:none; overflow:hidden;
+}
+.dimension-pop{
+  position:absolute;
+  width:min(300px,calc(100vw - 24px));
+  padding:12px;
+  border:1px solid rgba(190,205,190,.20);
+  background:rgba(10,13,11,.88);
+  backdrop-filter:blur(12px);
+  box-shadow:0 18px 70px rgba(0,0,0,.34);
+  transform:translateY(12px) scale(.985);
+  opacity:0;
+  transition:opacity .18s ease,transform .18s ease,border-color .18s ease;
+}
+.dimension-pop.open{opacity:1;transform:translateY(0) scale(1)}
+.dimension-pop.above{pointer-events:auto;z-index:3}
+.dimension-pop.through{pointer-events:none;z-index:1;opacity:.72}
+.dimension-pop.through .pop-controls{pointer-events:auto}
+.pop-kicker{font-size:8px;letter-spacing:.19em;color:#707970}
+.pop-title{font-size:13px;margin:7px 0;color:#d9ded8}
+.pop-story{font-size:9px;line-height:1.55;color:#929a92}
+.pop-controls{display:flex;gap:5px;margin-top:9px}
+.pop-controls button{
+  flex:1;border:1px solid var(--line);background:rgba(180,200,180,.05);
+  color:#aeb6ae;padding:7px 4px;font-size:7px;cursor:pointer
+}
+.pop-controls button.active{background:rgba(190,210,190,.12);color:#eef1ed}
+#opsDock{
+  position:fixed; z-index:14; left:50%; top:var(--edge); transform:translateX(-50%);
+  width:min(440px,calc(100vw - 2*var(--edge))); pointer-events:none;
+}
+#opsDock .ops-inner{
+  pointer-events:auto; border:1px solid var(--line); background:rgba(8,11,9,.78);
+  backdrop-filter:blur(12px); padding:9px 10px
+}
+.ops-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.ops-title{font-size:8px;letter-spacing:.18em;color:#788078}
+#timeSuit{font-size:8px;color:#aab2aa}
+#operationQueue{margin-top:7px;display:grid;gap:5px}
+.op-row{display:grid;grid-template-columns:82px 1fr 62px;gap:7px;align-items:center;font-size:7px}
+.op-track{height:3px;background:rgba(255,255,255,.07)}
+.op-fill{height:100%;background:currentColor}
+.op-state{text-align:right;color:#8d958d}
+#rearDiagnostic{
+  margin-top:12px;border-top:1px solid var(--line);padding-top:10px
+}
+.rear-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.rear-cell{border:1px solid var(--line);padding:7px;font-size:8px;color:#858d85}
+.rear-cell strong{display:block;color:#c4cbc3;margin-top:4px;font-weight:400}
+#maneuverings{margin-top:10px}
+.story-card{border-top:1px solid var(--line);padding:8px 0;font-size:8px;line-height:1.5;color:#8f978f}
+.story-card b{font-weight:400;color:#c1c8c0}
+#bongoHelp{
+  margin-top:8px;font-size:8px;line-height:1.5;color:#788078
+}
+@media (max-width:720px){
+  #opsDock{top:auto;bottom:calc(60px + env(safe-area-inset-bottom));width:calc(100vw - 12px)}
+  #opsDock .ops-inner{max-height:24dvh;overflow:auto}
+  .dimension-pop{width:min(260px,calc(100vw - 20px))}
+}
+
+
+/* ---------- RESIZE / PHONE ENCOMPASS REFACTOR ---------- */
+html, body {
+  width:100%;
+  height:100%;
+  min-height:100dvh;
+  max-width:100vw;
+  overflow:hidden;
+}
+
+#world, canvas {
+  width:100vw !important;
+  height:100dvh !important;
+}
+
+#movementLaneDock{
+  position:fixed;
+  z-index:26;
+  left:50%;
+  bottom:calc(66px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  width:min(760px,calc(100vw - 18px));
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  pointer-events:none;
+}
+.control-slab{
+  pointer-events:auto;
+  border:1px solid var(--line);
+  background:rgba(8,11,9,.90);
+  backdrop-filter:blur(12px);
+  padding:8px;
+}
+.control-slab .label{margin-bottom:6px}
+.control-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:4px;
+}
+.control-grid button{
+  min-width:0;
+  padding:8px 4px;
+  border:1px solid var(--line);
+  background:rgba(180,200,180,.045);
+  color:#aeb6ae;
+  font-size:7px;
+  cursor:pointer;
+}
+.control-grid button.active{
+  background:rgba(195,215,195,.13);
+  color:#eef1ed;
+}
+
+.dimension-pop{
+  resize:both;
+  overflow:auto;
+  min-width:180px;
+  min-height:110px;
+  max-width:calc(100vw - 12px);
+  max-height:calc(100dvh - 12px);
+  border-width:2px;
+}
+.dimension-pop.above{
+  border-style:solid;
+  box-shadow:0 24px 80px rgba(0,0,0,.46), inset 0 0 0 1px rgba(255,255,255,.025);
+}
+.dimension-pop.through{
+  border-style:dashed;
+  background:rgba(10,13,11,.62);
+}
+.pop-drag{
+  cursor:move;
+  user-select:none;
+  touch-action:none;
+}
+.pop-size{
+  margin-top:5px;
+  font-size:7px;
+  color:#687168;
+}
+
+@media (max-width:720px){
+  :root{ --edge:8px; }
+
+  #cartographer{
+    left:6px;
+    right:6px;
+    top:38px;
+    width:auto;
+    max-width:none;
+    max-height:28dvh;
+    padding:12px;
+  }
+
+  #commandPanel{
+    left:6px;
+    right:6px;
+    top:auto;
+    bottom:calc(168px + env(safe-area-inset-bottom));
+    width:auto;
+    max-width:none;
+    max-height:31dvh;
+    padding:12px;
+  }
+
+  #opsDock{
+    left:6px;
+    right:6px;
+    top:calc(28dvh + 12px);
+    bottom:auto;
+    width:auto;
+    transform:none;
+  }
+  #opsDock .ops-inner{
+    max-height:15dvh;
+    overflow:auto;
+  }
+
+  #movementLaneDock{
+    left:6px;
+    right:6px;
+    bottom:calc(60px + env(safe-area-inset-bottom));
+    transform:none;
+    width:auto;
+    grid-template-columns:1fr;
+    gap:4px;
+  }
+
+  .control-slab{
+    padding:6px;
+  }
+
+  .control-grid{
+    grid-template-columns:repeat(5,minmax(0,1fr));
+  }
+
+  #scalar{
+    left:4px;
+    right:4px;
+    width:auto;
+    max-width:none;
+    transform:none;
+    bottom:max(6px,env(safe-area-inset-bottom));
+  }
+
+  .dimension-pop{
+    width:min(94vw,360px);
+    max-width:96vw;
+    max-height:58dvh;
+  }
+}
+
+/* Wide-phone landscape: keep one full-width screen, never split into side panels. */
+@media (max-height:540px) and (orientation:landscape){
+  #cartographer{
+    left:6px; top:6px; width:34vw; max-height:48dvh;
+  }
+  #commandPanel{
+    left:auto; right:6px; top:6px; bottom:auto;
+    width:34vw; max-height:48dvh;
+  }
+  #opsDock{
+    left:50%; right:auto; top:6px;
+    width:28vw; transform:translateX(-50%);
+  }
+  #movementLaneDock{
+    left:50%; right:auto; bottom:56px;
+    transform:translateX(-50%);
+    width:min(720px,calc(100vw - 12px));
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+
+/* ---------- SCREEN LOYALTY / ROTATION CONCERT ---------- */
+#orientationDock{
+  position:fixed;
+  z-index:27;
+  left:50%;
+  top:calc(var(--edge) + 54px);
+  transform:translateX(-50%);
+  width:min(720px,calc(100vw - 18px));
+  pointer-events:none;
+}
+.orientation-inner{
+  pointer-events:auto;
+  border:1px solid var(--line);
+  background:rgba(8,11,9,.91);
+  backdrop-filter:blur(12px);
+  padding:8px;
+}
+.orientation-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:7px;
+}
+.orientation-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px;
+}
+.axis-box{
+  border:1px solid var(--line);
+  padding:6px;
+}
+.axis-box label{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  font-size:7px;
+  color:#8e978e;
+  margin-bottom:5px;
+}
+.axis-box input[type="range"]{
+  width:100%;
+  accent-color:currentColor;
+}
+.orientation-actions{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:4px;
+  margin-top:6px;
+}
+.orientation-actions button{
+  min-width:0;
+  border:1px solid var(--line);
+  background:rgba(180,200,180,.05);
+  color:#aab2aa;
+  padding:7px 3px;
+  font-size:7px;
+  cursor:pointer;
+}
+.orientation-actions button.active{
+  background:rgba(195,215,195,.13);
+  color:#edf1ec;
+}
+#concertState{
+  font-size:7px;
+  color:#8d958d;
+  white-space:nowrap;
+}
+@media (max-width:720px){
+  #orientationDock{
+    left:6px;
+    right:6px;
+    top:calc(28dvh + 12px);
+    transform:none;
+    width:auto;
+  }
+  .orientation-inner{padding:6px}
+  .orientation-grid{
+    grid-template-columns:1fr;
+    gap:3px;
+  }
+  .axis-box{
+    display:grid;
+    grid-template-columns:105px 1fr;
+    align-items:center;
+    gap:6px;
+    padding:4px;
+  }
+  .axis-box label{margin:0}
+  .orientation-actions{
+    grid-template-columns:repeat(5,minmax(0,1fr));
+  }
+  #opsDock{
+    top:calc(28dvh + 190px);
+  }
+}
+@media (max-height:540px) and (orientation:landscape){
+  #orientationDock{
+    left:50%;
+    right:auto;
+    top:auto;
+    bottom:116px;
+    transform:translateX(-50%);
+    width:min(760px,calc(100vw - 12px));
+  }
+  .orientation-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+
+/* ---------- PHASE STACK / CLEAN WINDOW SYMBOLS ---------- */
+:root{
+  --window-front: 60;
+  --window-back: 30;
+}
+
+.panel,
+#opsDock,
+#orientationDock,
+#movementLaneDock,
+.dimension-pop{
+  transition:
+    opacity .16s ease,
+    transform .16s ease,
+    filter .16s ease,
+    box-shadow .16s ease;
+}
+
+.ui-window{
+  will-change:transform,opacity;
+}
+
+.ui-window.phase-front{
+  z-index:var(--window-front) !important;
+  opacity:1;
+  filter:none;
+  pointer-events:auto;
+}
+
+.ui-window.phase-back{
+  z-index:var(--window-back) !important;
+  opacity:.34;
+  filter:blur(.2px) saturate(.72);
+  pointer-events:none;
+}
+
+.ui-window.phase-hidden{
+  opacity:0 !important;
+  pointer-events:none !important;
+  visibility:hidden;
+}
+
+.ui-window.phase-peek{
+  opacity:.12;
+  pointer-events:none;
+}
+
+.window-tools{
+  display:flex;
+  gap:4px;
+  align-items:center;
+}
+
+.window-tools button{
+  width:24px;
+  height:24px;
+  padding:0;
+  border:1px solid var(--line);
+  background:rgba(180,200,180,.045);
+  color:#9fa79f;
+  font-size:12px;
+  line-height:1;
+  cursor:pointer;
+}
+
+.window-tools button:hover,
+.window-tools button.active{
+  background:rgba(195,215,195,.12);
+  color:#edf1ec;
+}
+
+.window-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  margin-bottom:6px;
+}
+
+#windowBar{
+  position:fixed;
+  z-index:70;
+  top:max(4px,env(safe-area-inset-top));
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  gap:4px;
+  padding:4px;
+  border:1px solid var(--line);
+  background:rgba(7,9,8,.90);
+  backdrop-filter:blur(10px);
+}
+
+#windowBar button{
+  min-width:0;
+  padding:6px 8px;
+  border:1px solid var(--line);
+  background:transparent;
+  color:#7d857d;
+  font-size:7px;
+  cursor:pointer;
+}
+
+#windowBar button.active{
+  background:rgba(190,210,190,.12);
+  color:#eef1ed;
+}
+
+body.phase-clean #grain{
+  opacity:.045;
+}
+
+body.phase-clean .panel,
+body.phase-clean .orientation-inner,
+body.phase-clean .control-slab,
+body.phase-clean #opsDock .ops-inner{
+  box-shadow:none;
+}
+
+/* Keep the 3D background steady regardless of UI phase changes. */
+#world{
+  z-index:0 !important;
+  transform:none !important;
+}
+#world canvas{
+  position:absolute;
+  inset:0;
+  transform:none !important;
+}
+
+@media (max-width:720px){
+  #windowBar{
+    left:4px;
+    right:4px;
+    width:auto;
+    transform:none;
+    justify-content:space-between;
+    overflow-x:auto;
+  }
+  #windowBar button{
+    flex:1 0 auto;
+    padding:6px 5px;
+  }
+
+  .panel,
+  #orientationDock,
+  #opsDock,
+  #movementLaneDock{
+    max-width:calc(100vw - 8px) !important;
+  }
+
+  .dimension-pop{
+    min-width:160px;
+    min-height:96px;
+    resize:both;
+  }
+}
+
+
+/* ---------- SUCCESSOR CAMERA / FOCUS RIG ---------- */
+#cameraRigDock{
+  position:fixed;
+  z-index:72;
+  right:max(6px,env(safe-area-inset-right));
+  top:46px;
+  width:min(310px,calc(100vw - 12px));
+  border:1px solid var(--line);
+  background:rgba(8,11,9,.92);
+  backdrop-filter:blur(12px);
+  padding:7px;
+}
+.camera-rig-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:4px;
+}
+.camera-rig-grid button{
+  min-width:0;
+  padding:7px 3px;
+  border:1px solid var(--line);
+  background:rgba(180,200,180,.045);
+  color:#9fa79f;
+  font-size:7px;
+  cursor:pointer;
+}
+.camera-rig-grid button.active{
+  background:rgba(195,215,195,.13);
+  color:#eef1ed;
+}
+.camera-meter{
+  margin-top:5px;
+  font-size:7px;
+  color:#7d857d;
+}
+@media (max-width:720px){
+  #cameraRigDock{
+    left:6px;
+    right:6px;
+    top:38px;
+    width:auto;
+  }
+}
+
+</style>
+</head>
+<body>
+<div id="world"></div>
+
+
+<section id="cameraRigDock" class="ui-window phase-back">
+  <div class="window-head">
+    <div class="label">SUCCESSOR CAMERA / FOCUS RIG</div>
+    <div class="window-tools"><button id="cameraHide">×</button></div>
+  </div>
+  <div class="camera-rig-grid">
+    <button id="focusEntity" class="active">FOCUS ENTITY</button>
+    <button id="focusLane">FOCUS LANE</button>
+    <button id="successorView">SUCCESSOR</button>
+    <button id="jitterToggle">DEEP JITTER</button>
+  </div>
+  <div class="camera-meter" id="cameraMeter">SMOOTH 0.14 / JITTER 0.000</div>
+</section>
+
+<nav id="windowBar" aria-label="Window phases">
+  <button data-window-target="cartographer" class="active">MAP</button>
+  <button data-window-target="commandPanel">CMD</button>
+  <button data-window-target="orientationDock">ROT</button>
+  <button data-window-target="opsDock">OPS</button>
+  <button data-window-target="movementLaneDock">MOVE</button>
+  <button data-window-target="cameraRigDock">CAM</button>
+  <button id="hideAllWindows">HIDE</button>
+</nav>
+
+
+<section id="cartographer" class="panel ui-window phase-front">
+  <div id="modeLabel" class="label">CARTOGRAPHER / UNBOUND</div>
+  <h1 id="heading">Establish your position</h1>
+  <div id="description">Gaming is withheld until relation is declared. Choose how you stand toward the entity; then commands become playable.</div>
+  <div id="menu"></div>
+  <div id="history"></div>
+  <div id="rearDiagnostic">
+    <div class="label">REAR ACCORD / MISSING FEATURES</div>
+    <div id="rearGrid" class="rear-grid"></div>
+  </div>
+  <div id="maneuverings">
+    <div class="label">MANEUVERINGS / SIDE STORIES</div>
+    <div id="storyCards"></div>
+  </div>
+</section>
+
+<aside id="commandPanel" class="panel ui-window phase-back">
+  <div class="label">COMMAND NECESSITY / PROTO SUSTENANCE</div>
+  <div id="commandTitle" class="command-title"></div>
+
+  <div class="block"><div class="block-name">IMMEDIATE CONSEQUENCE</div><div id="immediate" class="block-value"></div></div>
+  <div class="block"><div class="block-name">BECOMING</div><div id="becoming" class="block-value"></div></div>
+  <div class="block"><div class="block-name">SUPPORT REQUIRED</div><div id="support" class="support-chips"></div></div>
+  <div class="block"><div class="block-name">MODIFIER</div><div id="modifier" class="block-value"></div></div>
+  <div class="block"><div class="block-name">TAKE</div><div id="take"></div></div>
+  <div class="block"><div class="block-name">PROPERTY FORECAST</div><div id="properties"></div></div>
+  <div class="block"><div class="block-name">NECKY NECKS / DIRECTION</div><div id="neckDirection" class="neck-note"></div></div>
+  <div class="block"><div class="block-name">PERSISTENT CONSEQUENCE</div><div id="persistent" class="block-value"></div></div>
+
+  <button id="execute" disabled>COMMAND REQUIRED</button>
+</aside>
+
+<nav id="scalar" aria-label="Entity scalar" title="One continuous scalar: I → II → III → IV → ∞">
+  <button class="scalar-step active" data-resolution="1">I<br>FORM</button>
+  <button class="scalar-step" data-resolution="2">II<br>SYSTEM</button>
+  <button class="scalar-step" data-resolution="3">III<br>UPTAKE</button>
+  <button class="scalar-step" data-resolution="4">IV<br>PROPERTY</button>
+  <button class="scalar-step" id="infinityStep" data-infinity="1">∞<br>BEYOND</button>
+</nav>
+
+<div id="status"></div>
+<div id="toast"></div>
+
+<div id="dimensionLayer" aria-live="polite"></div>
+
+<section id="opsDock" class="ui-window phase-back">
+  <div class="ops-inner">
+    <div class="ops-head">
+      <div class="ops-title">BONGO KEY / TIME SUIT</div>
+      <div id="timeSuit">SUIT: DRIFT ×1</div>
+    </div>
+    <div id="operationQueue"></div>
+    <div id="bongoHelp">B cycles time suits. Bellows operations use suit-time, not wall-clock time.</div>
+  </div>
+</section>
+
+
+
+<section id="orientationDock" class="ui-window phase-back">
+  <div class="orientation-inner">
+    <div class="orientation-head">
+      <div class="label">SCREEN LOYALTY / ROTATION CONCERT</div>
+      <div id="concertState">LOYAL: ENTITY / CONCERT OFF</div>
+    </div>
+
+    <div class="orientation-grid">
+      <div class="axis-box">
+        <label><span>HORIZONTAL / YAW</span><span id="yawDeg">0°</span></label>
+        <input id="yawRange" type="range" min="-180" max="180" value="0" step="1">
+      </div>
+
+      <div class="axis-box">
+        <label><span>VERTICAL / PITCH</span><span id="pitchDeg">0°</span></label>
+        <input id="pitchRange" type="range" min="-89" max="89" value="0" step="1">
+      </div>
+
+      <div class="axis-box">
+        <label><span>MANGANAL / ROLL</span><span id="rollDeg">0°</span></label>
+        <input id="rollRange" type="range" min="-180" max="180" value="0" step="1">
+      </div>
+    </div>
+
+    <div class="orientation-actions">
+      <button id="loyalEntity" class="active">LOYAL ENTITY</button>
+      <button id="loyalLane">LOYAL LANE</button>
+      <button id="concertToggle">AUTO CONCERT</button>
+      <button id="pauseRotation">PAUSE</button>
+      <button id="resetRotation">ZERO</button>
+    </div>
+  </div>
+</section>
+
+<section id="movementLaneDock" class="ui-window phase-back">
+  <div class="control-slab">
+    <div class="label">MOVEMENT / BODY VECTOR</div>
+    <div id="movementControls" class="control-grid">
+      <button data-move="left">LEFT</button>
+      <button data-move="forward">FORWARD</button>
+      <button data-move="right">RIGHT</button>
+      <button data-move="back">BACK</button>
+      <button data-move="hold">HOLD</button>
+    </div>
+  </div>
+  <div class="control-slab">
+    <div class="label">LANE / OPERATIONAL TRACK</div>
+    <div id="laneControls" class="control-grid">
+      <button data-lane="-2">L−2</button>
+      <button data-lane="-1">L−1</button>
+      <button data-lane="0" class="active">CENTER</button>
+      <button data-lane="1">L+1</button>
+      <button data-lane="2">L+2</button>
+    </div>
+  </div>
+</section>
+
+<div id="grain"></div>
+
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js";
+
+const clamp=(v,a=0,b=100)=>THREE.MathUtils.clamp(v,a,b);
+const state={
+  role:null, system:null, resolution:1, pendingAction:null, regime:"DERELICT", condition:"SUSTAINED",
+  properties:{autonomy:72,stability:68,pressure:41,perception:53,confinement:18,entropy:22},
+  sustenance:{reserve:74,attention:68,territory:82,ambiguity:61,surfaceIntegrity:77,cognitiveReserve:69,pressureReserve:72,locomotiveReserve:66,burden:18},
+  history:[],
+  timeSuit:{name:"DRIFT",rate:1},
+  operations:[],
+  dimensionPops:[],
+  rear:{
+    dorsalRelay:72,
+    backPlate:64,
+    aftSense:53,
+    featureContinuity:61
+  },
+  movement:{mode:"hold",x:0,z:0},
+  lane:0,
+  screen:{
+    loyalty:"entity",
+    yaw:0,
+    pitch:0,
+    roll:0,
+    concert:false,
+    paused:false,
+    concertPhase:0,
+    successorPhase:0
+  },
+  windows:{
+    active:"cartographer",
+    hidden:false
+  },
+  cameraRig:{
+    focusMode:"entity",
+    successor:0,
+    successorTarget:0,
+    smoothness:0.14,
+    focusSmoothness:0.10,
+    jitterEnabled:false,
+    jitterStrength:0.008,
+    jitterFrequency:5.5,
+    jitterSeed:1.0
+  }
+};
+
+const actions={
+  furry:{
+    name:"Rearrange Furry Reception",
+    immediate:"Exterior receptors open to cartographic observation. Surface response becomes measurable while autonomy remains mostly intact.",
+    proto:{
+      sustenance:"Exterior sensory continuity",
+      becoming:"The unknown exterior becomes a classified receptive boundary.",
+      support:["surface integrity","ambient signal","thermal continuity","sensory autonomy"],
+      modifier:{source:"CARTOGRAPHIC OBSERVATION",property:"perception",strength:9},
+      take:{attention:5,autonomy:1},
+      consequence:"Observation becomes part of future behaviour; the exterior becomes easier to read and harder to leave wholly unknown."
+    },
+    delta:{perception:9,autonomy:-1,entropy:2}
+  },
+  enigmous:{
+    name:"Resolve Enigmous Interior",
+    immediate:"The uncertain cognitive region is sampled. Local ambiguity decreases and observational pressure rises.",
+    proto:{
+      sustenance:"Cognitive uncertainty",
+      becoming:"An unresolved interior begins becoming a model that can be predicted.",
+      support:["memory variance","internal ambiguity","cognitive reserve","unforced interpretation"],
+      modifier:{source:"SUPERVISORY RESOLUTION",property:"ambiguity",strength:-12},
+      take:{ambiguity:12,attention:7,autonomy:4},
+      consequence:"Prediction improves, but repeated resolution can replace uncertainty with externally maintained expectation."
+    },
+    delta:{perception:12,autonomy:-4,confinement:3,entropy:4}
+  },
+  bellows:{
+    name:"Prime Bellows Cycle",
+    immediate:"The first bellows stage opens intake and schedules a multi-stage operation instead of applying the whole change at once.",
+    proto:{
+      sustenance:"Pressure-mediated exchange",
+      becoming:"The body becomes capable of accepting greater environmental throughput through staged intake, equalization and recovery.",
+      support:["pressure reserve","exchange surface","structural elasticity","recovery time"],
+      modifier:{source:"BELLOWS OPERATIONAL",property:"pressure",strength:14},
+      take:{pressureReserve:8,reserve:6,stability:3,autonomy:2},
+      consequence:"The command persists through suit-time: prime, draw, equalize and recover each leave a smaller inherited consequence."
+    },
+    delta:{pressure:14,stability:-3,autonomy:-2,entropy:5},
+    operation:"bellowsCycle"
+  },
+  ground:{
+    name:"Reform Ground Relation",
+    immediate:"Locomotion is confined to the current operational territory.",
+    proto:{
+      sustenance:"Contact with traversable territory",
+      becoming:"Open movement becomes bounded locomotion.",
+      support:["terrain","contact stability","permitted territory","locomotive reserve"],
+      modifier:{source:"SPATIAL CONFINEMENT",property:"territory",strength:-13},
+      take:{territory:13,locomotiveReserve:5,autonomy:8},
+      consequence:"Movement becomes more stable because its possible world has become smaller."
+    },
+    delta:{confinement:13,autonomy:-8,stability:4,entropy:3}
+  },
+  neck:{
+    name:"Instigate Neck Direction",
+    immediate:"The entity redirects attention and body intent toward a neighboring operational vector before translation occurs.",
+    proto:{
+      sustenance:"Directional continuity between cognition and body",
+      becoming:"Orientation itself becomes an executable precondition for later movement.",
+      support:["cognitive reserve","locomotive reserve","attention","stable ground"],
+      modifier:{source:"NECKY NECKS VECTOR",property:"orientation",strength:11},
+      take:{attention:6,cognitiveReserve:4,locomotiveReserve:3},
+      consequence:"Future actions inherit a directional bias: what the entity looks toward becomes easier to approach and harder to ignore."
+    },
+    delta:{perception:6,stability:2,entropy:2}
+  },
+  rear:{
+    name:"Reconcile Rear Accord",
+    immediate:"The aft body is compared against its expected feature map. Missing continuities are exposed without forcing repair.",
+    proto:{
+      sustenance:"Rear feature continuity",
+      becoming:"An incomplete back-plane becomes a diagnosable arrangement rather than an invisible omission.",
+      support:["dorsal relay","back plate","aft sensing","feature continuity"],
+      modifier:{source:"REAR ACCORD RECONCILIATION",property:"feature continuity",strength:8},
+      take:{attention:4,reserve:3},
+      consequence:"Future operations can distinguish damage, absence and deliberate omission instead of treating all missing features as one fault."
+    },
+    delta:{perception:4,stability:2,entropy:-1}
+  }
+};
+
+// ---------- THREE.JS ----------
+const host=document.querySelector("#world");
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x070908);
+scene.fog=new THREE.FogExp2(0x070908,.038);
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.1,100);
+camera.position.set(0,0,10.2);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+host.appendChild(renderer.domElement);
+
+const entity=new THREE.Group();
+const skin=new THREE.MeshStandardMaterial({color:0x252a26,roughness:.91,metalness:.03});
+const torso=new THREE.Mesh(new THREE.IcosahedronGeometry(1.8,3),skin);
+torso.scale.set(.82,1.42,.58); entity.add(torso);
+
+const furry=new THREE.Mesh(new THREE.IcosahedronGeometry(1.88,2),new THREE.MeshBasicMaterial({color:0x687067,wireframe:true,transparent:true,opacity:.055}));
+furry.scale.copy(torso.scale); entity.add(furry);
+
+const neckPivot=new THREE.Group();
+neckPivot.position.set(0,1.32,0);
+const neck=new THREE.Mesh(new THREE.CylinderGeometry(.22,.31,.72,12),skin);
+neck.rotation.z=0; neck.position.y=.31; neckPivot.add(neck);
+const head=new THREE.Mesh(new THREE.IcosahedronGeometry(.58,2),new THREE.MeshStandardMaterial({color:0x303530,roughness:.82}));
+head.position.set(0,.88,.12); neckPivot.add(head);
+entity.add(neckPivot);
+
+const enigmous=new THREE.Mesh(new THREE.SphereGeometry(.38,20,14),new THREE.MeshStandardMaterial({color:0x3b413c,roughness:.5,transparent:true,opacity:.86}));
+enigmous.position.set(0,2.08,.16); entity.add(enigmous);
+
+const bellows=new THREE.Mesh(new THREE.SphereGeometry(.72,28,20),new THREE.MeshStandardMaterial({color:0x30362f,roughness:.74}));
+bellows.position.set(0,-.28,.72); bellows.scale.set(1,.78,.55); entity.add(bellows);
+
+const groundGroup=new THREE.Group();
+for(const x of[-.72,.72]){
+  const limb=new THREE.Mesh(new THREE.CylinderGeometry(.13,.20,2.7,10),skin);
+  limb.position.set(x,-2.1,0); limb.rotation.z=-x*.11; groundGroup.add(limb);
+}
+entity.add(groundGroup);
+scene.add(entity);
+
+const ring=new THREE.Mesh(new THREE.RingGeometry(2.7,2.73,96),new THREE.MeshBasicMaterial({color:0x596158,transparent:true,opacity:.28,side:THREE.DoubleSide}));
+ring.rotation.x=-Math.PI/2; ring.position.y=-3.48; scene.add(ring);
+
+const pc=1200, pos=new Float32Array(pc*3);
+for(let i=0;i<pc;i++){pos[i*3]=(Math.random()-.5)*34;pos[i*3+1]=(Math.random()-.5)*23;pos[i*3+2]=(Math.random()-.5)*28}
+const dg=new THREE.BufferGeometry(); dg.setAttribute("position",new THREE.BufferAttribute(pos,3));
+const dust=new THREE.Points(dg,new THREE.PointsMaterial({size:.022,color:0x777d75,transparent:true,opacity:.48})); scene.add(dust);
+scene.add(new THREE.HemisphereLight(0x626b62,0x030403,1.25));
+const backLight=new THREE.DirectionalLight(0xa0a8a0,2.3); backLight.position.set(-4,6,-3); scene.add(backLight);
+
+// ---------- UI ----------
+const $=s=>document.querySelector(s);
+const menu=$("#menu"), commandPanel=$("#commandPanel"), execute=$("#execute"), historyEl=$("#history");
+const roles=[
+  {id:"entity",name:"ENTITY",description:"Act from inside the organism; commands favor direct embodied consequence."},
+  {id:"supervisor",name:"ADULT SUPERVISOR",description:"Observe and authorize intervention; commands favor explanation and restraint."},
+  {id:"upkeep",name:"UPKEEP",description:"Maintain continuity and repair; commands favor support and sustainable reserve."}
+];
+
+function renderRoles(){
+  menu.innerHTML="";
+  roles.forEach(role=>{
+    const b=document.createElement("button"); b.className="menu-button";
+    b.innerHTML=`${role.name}<small>${role.description}</small>`;
+    b.onclick=()=>selectRole(role); menu.appendChild(b);
+  });
+}
+function selectRole(role){
+  state.role=role.id;
+  $("#modeLabel").textContent=`CARTOGRAPHER / ${role.name}`;
+  $("#heading").textContent="Entity cartography";
+  $("#description").textContent="Select a body arrangement. Selection explains becoming, support, modifier, take and consequence before execution.";
+  renderSystems();
+}
+function renderSystems(){
+  menu.innerHTML="";
+  [
+    ["furry","FURRY","Exterior reception and surface classification"],
+    ["enigmous","ENIGMOUS","Unresolved cognition and predictive pressure"],
+    ["bellows","BELLOWS","Pressure, uptake and environmental throughput"],
+    ["ground","GROUND","Territory, contact and bounded locomotion"],
+    ["neck","NECKY NECKS","Orientation as a precondition for later action"],
+    ["rear","REAR ACCORD","Back-plane integrity and missing-feature reconciliation"]
+  ].forEach(([id,title,sub])=>{
+    const b=document.createElement("button"); b.className="menu-button";
+    b.innerHTML=`${title}<small>${sub}</small>`; b.onclick=()=>prepareCommand(id); menu.appendChild(b);
+  });
+}
+function available(resource){
+  if(resource in state.sustenance)return state.sustenance[resource];
+  if(resource in state.properties)return state.properties[resource];
+  return 100;
+}
+function canSustain(take){
+  return Object.entries(take).every(([r,a])=>a<=0 || available(r)>=a);
+}
+function signed(v){return `${v>=0?"+":""}${v}`}
+function niceKey(k){return k.replace(/([A-Z])/g," $1").toUpperCase()}
+function prepareCommand(id){
+  state.system=id; state.pendingAction=actions[id];
+  const a=state.pendingAction, p=a.proto, viable=canSustain(p.take);
+  $("#commandTitle").textContent=a.name;
+  $("#immediate").textContent=a.immediate;
+  $("#becoming").textContent=p.becoming;
+  $("#support").innerHTML=p.support.map(x=>`<span class="chip">${x.toUpperCase()}</span>`).join("");
+  $("#modifier").textContent=`${p.modifier.source} → ${p.modifier.property.toUpperCase()} ${signed(p.modifier.strength)}`;
+  $("#persistent").textContent=p.consequence;
+  $("#neckDirection").textContent=id==="neck"
+    ? "Pointer/touch movement steers the neck vector. Issue the command to make orientation consequential."
+    : id==="rear"
+      ? "Rear accord is diagnostic: it exposes what is missing behind the body before deciding whether anything should be restored."
+      : "Neck direction remains inherited from prior orientation. Select NECKY NECKS to deliberately re-vector intent.";
+  renderTake(p.take); renderPropertyForecast(a.delta);
+  execute.disabled=!viable; execute.textContent=viable?"ISSUE COMMAND":"INSUFFICIENT SUPPORT";
+  commandPanel.classList.add("visible"); focusSystem(id);
+}
+function renderTake(take){
+  $("#take").innerHTML="";
+  Object.entries(take).forEach(([r,a])=>{
+    const before=available(r), after=clamp(before-a);
+    const row=document.createElement("div"); row.className="ledger-row";
+    row.innerHTML=`<span>${niceKey(r)}</span><div class="bar"><div class="fill" style="width:${after}%"></div></div><span class="delta neg">-${a}</span>`;
+    $("#take").appendChild(row);
+  });
+}
+function renderPropertyForecast(delta){
+  $("#properties").innerHTML="";
+  Object.entries(delta).forEach(([r,d])=>{
+    const before=available(r), after=clamp(before+d), cls=d>=0?"pos":"neg";
+    const row=document.createElement("div"); row.className="property-row";
+    row.innerHTML=`<span>${niceKey(r)}</span><div class="bar"><div class="fill" style="width:${after}%"></div></div><span class="delta ${cls}">${signed(d)}</span>`;
+    $("#properties").appendChild(row);
+  });
+}
+function applyTake(take){
+  Object.entries(take).forEach(([r,a])=>{
+    if(r in state.sustenance) state.sustenance[r]=clamp(state.sustenance[r]-a);
+    else if(r in state.properties) state.properties[r]=clamp(state.properties[r]-a);
+  });
+}
+function applyDelta(delta){
+  Object.entries(delta).forEach(([r,d])=>{
+    if(r in state.properties) state.properties[r]=clamp(state.properties[r]+d);
+    else if(r in state.sustenance) state.sustenance[r]=clamp(state.sustenance[r]+d);
+  });
+}
+function burdenOf(action){
+  return Object.values(action.proto.take).filter(v=>v>0).reduce((a,b)=>a+b,0)*.18;
+}
+function roleAdjustment(){
+  if(state.role==="upkeep"){state.sustenance.reserve=clamp(state.sustenance.reserve+3);state.sustenance.burden=clamp(state.sustenance.burden-2)}
+  if(state.role==="supervisor"){state.properties.entropy=clamp(state.properties.entropy-1)}
+  if(state.role==="entity"){state.properties.autonomy=clamp(state.properties.autonomy+1)}
+}
+function resolveRegime(){
+  const p=state.properties;
+  if(p.confinement>75&&p.autonomy<30)state.regime="OPPRESSION";
+  else if(p.confinement>55&&p.autonomy<50)state.regime="REGIME";
+  else if(p.confinement>35)state.regime="GOVERNANCE";
+  else if(p.entropy>65)state.regime="DERELICT ENTROPY";
+  else state.regime="DERELICT";
+}
+function resolveSustenance(){
+  const s=state.sustenance;
+  if(s.reserve<=10||s.pressureReserve<=10||s.locomotiveReserve<=8)state.condition="UNSUSTAINED";
+  else if(s.burden>=80)state.condition="OVERBURDENED";
+  else if(state.properties.entropy>=75)state.condition="DERELICT";
+  else state.condition="SUSTAINED";
+}
+function executeCommand(action){
+  if(!action||!canSustain(action.proto.take))return;
+
+  if(action.operation==="bellowsCycle"){
+    startBellowsCycle(action);
+    execute.disabled=true;
+    execute.textContent="BELLOWS OPERATION QUEUED";
+    spawnDimensionPop("BELLOWS OPERATION", "A staged intake cycle has crossed into suit-time. You may feature this ABOVE the scene or let it remain THROUGH the scene.", true);
+    return;
+  }
+
+  applyTake(action.proto.take); applyDelta(action.delta);
+  state.sustenance.burden=clamp(state.sustenance.burden+burdenOf(action));
+  roleAdjustment(); resolveRegime(); resolveSustenance();
+  if(state.system==="rear"){
+    state.rear.dorsalRelay=clamp(state.rear.dorsalRelay+5);
+    state.rear.featureContinuity=clamp(state.rear.featureContinuity+8);
+    renderRearDiagnostic();
+    spawnDimensionPop("REAR FEATURE TRACE", "Aft continuity has been remapped. The pop-out can sit ABOVE the interface or remain THROUGH it as a non-blocking dimensional trace.", false);
+  }
+  state.history.unshift({name:action.name,consequence:action.proto.consequence,regime:state.regime,condition:state.condition});
+  state.history=state.history.slice(0,5);
+  consequenceImpulse=1;
+  $("#immediate").textContent=`COMMAND EXECUTED. ${action.immediate}`;
+  $("#becoming").textContent=`BECOMING ACTIVE. ${action.proto.becoming}`;
+  execute.disabled=true; execute.textContent="COMMAND RECORDED";
+  renderHistory(); updateStatus(); toast(`${action.name} → ${state.condition}`);
+}
+execute.onclick=()=>executeCommand(state.pendingAction);
+function renderHistory(){
+  historyEl.innerHTML=state.history.length?`<div class="label" style="margin-top:14px">INHERITED CONSEQUENCES</div>`:"";
+  state.history.forEach(h=>{
+    const d=document.createElement("div"); d.className="history-item";
+    d.textContent=`${h.name} / ${h.regime} / ${h.condition}`; historyEl.appendChild(d);
+  });
+}
+function toast(msg){
+  const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t);
+  toast._t=setTimeout(()=>t.classList.remove("show"),1400);
+}
+
+
+// ---------- DIMENSION POP-OUTS ----------
+let popSerial=0;
+function popupStorageKey(title){
+  return `et-popup:${title.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}`;
+}
+
+function loadPopupRect(title){
+  try{
+    const raw=localStorage.getItem(popupStorageKey(title));
+    return raw ? JSON.parse(raw) : null;
+  }catch(_){ return null; }
+}
+
+function savePopupRect(title,el){
+  try{
+    localStorage.setItem(popupStorageKey(title),JSON.stringify({
+      left:el.style.left, top:el.style.top,
+      width:`${el.offsetWidth}px`, height:`${el.offsetHeight}px`,
+      mode:el.classList.contains("through")?"through":"above"
+    }));
+  }catch(_){}
+}
+
+function clampPopupToViewport(el){
+  const r=el.getBoundingClientRect();
+  let left=Math.max(6,Math.min(r.left,innerWidth-r.width-6));
+  let top=Math.max(6,Math.min(r.top,innerHeight-r.height-6));
+  el.style.left=`${left}px`;
+  el.style.top=`${top}px`;
+}
+
+function spawnDimensionPop(title, story, featured=true){
+  const layer=$("#dimensionLayer");
+  const el=document.createElement("article");
+  const id=++popSerial;
+  const saved=loadPopupRect(title);
+
+  const fallbackX=16+((id*71)%Math.max(40,innerWidth-330));
+  const fallbackY=70+((id*83)%Math.max(80,innerHeight-300));
+  const mode=saved?.mode || (featured?"above":"through");
+
+  el.className=`dimension-pop ${mode}`;
+  el.style.left=saved?.left || `${Math.max(10,fallbackX)}px`;
+  el.style.top=saved?.top || `${Math.max(10,fallbackY)}px`;
+  if(saved?.width) el.style.width=saved.width;
+  if(saved?.height) el.style.height=saved.height;
+
+  el.innerHTML=`
+    <div class="pop-kicker pop-drag">DIMENSIONAL POP-OUT / ${id}</div>
+    <div class="pop-title">${title}</div>
+    <div class="pop-story">${story}</div>
+    <div class="pop-size">RESIZABLE WINDOW / SIZE + POSITION REMEMBERED</div>
+    <div class="pop-controls">
+      <button data-mode="above" class="${mode==="above"?"active":""}">ABOVE</button>
+      <button data-mode="through" class="${mode==="through"?"active":""}">THROUGH</button>
+      <button data-close="1">CLOSE</button>
+    </div>`;
+
+  layer.appendChild(el);
+
+  el.addEventListener("pointerdown",()=>{
+    document.querySelectorAll(".dimension-pop").forEach(p=>{
+      if(p!==el && p.classList.contains("above")){
+        p.style.zIndex="2";
+      }
+    });
+    el.style.zIndex="5";
+  });
+
+  requestAnimationFrame(()=>{
+    clampPopupToViewport(el);
+    el.classList.add("open");
+  });
+
+  const above=el.querySelector('[data-mode="above"]');
+  const through=el.querySelector('[data-mode="through"]');
+  const close=el.querySelector('[data-close="1"]');
+  const drag=el.querySelector(".pop-drag");
+
+  above.onclick=(ev)=>{
+    ev.stopPropagation();
+    el.classList.remove("through"); el.classList.add("above");
+    above.classList.add("active"); through.classList.remove("active");
+    savePopupRect(title,el);
+  };
+
+  through.onclick=(ev)=>{
+    ev.stopPropagation();
+    el.classList.remove("above"); el.classList.add("through");
+    above.classList.remove("active"); through.classList.add("active");
+    savePopupRect(title,el);
+  };
+
+  close.onclick=(ev)=>{
+    ev.stopPropagation();
+    savePopupRect(title,el);
+    el.classList.remove("open");
+    setTimeout(()=>el.remove(),180);
+  };
+
+  // Dragging is independent from resizing.
+  let dragging=false, ox=0, oy=0;
+  drag.addEventListener("pointerdown",ev=>{
+    dragging=true;
+    drag.setPointerCapture(ev.pointerId);
+    const r=el.getBoundingClientRect();
+    ox=ev.clientX-r.left; oy=ev.clientY-r.top;
+    ev.preventDefault();
+  });
+  drag.addEventListener("pointermove",ev=>{
+    if(!dragging)return;
+    el.style.left=`${ev.clientX-ox}px`;
+    el.style.top=`${ev.clientY-oy}px`;
+    clampPopupToViewport(el);
+  });
+  drag.addEventListener("pointerup",ev=>{
+    dragging=false;
+    savePopupRect(title,el);
+    try{drag.releasePointerCapture(ev.pointerId)}catch(_){}
+  });
+
+  // ResizeObserver remembers manual CSS-resize changes.
+  if("ResizeObserver" in window){
+    const ro=new ResizeObserver(()=>{
+      clampPopupToViewport(el);
+      savePopupRect(title,el);
+    });
+    ro.observe(el);
+  }
+}
+
+// ---------- REAR ACCORD ----------
+function renderRearDiagnostic(){
+  const r=state.rear;
+  const rows=[
+    ["DORSAL RELAY",r.dorsalRelay],
+    ["BACK PLATE",r.backPlate],
+    ["AFT SENSE",r.aftSense],
+    ["FEATURE CONTINUITY",r.featureContinuity]
+  ];
+  $("#rearGrid").innerHTML=rows.map(([name,value])=>
+    `<div class="rear-cell">${name}<strong>${Math.round(value)} / 100</strong></div>`
+  ).join("");
+}
+
+// ---------- MANEUVERINGS / SIDE STORIES ----------
+const maneuverStories=[
+  {
+    title:"Battle Cruiser / Quiet Turn",
+    body:"A cruiser does not attack; it rotates three degrees off-lane so a convoy can pass unseen behind its engine wake. The maneuver is remembered as restraint, not victory."
+  },
+  {
+    title:"Operational / Hollow Dock",
+    body:"An upkeep crew discovers a docking arm that reports perfect alignment while touching nothing. They keep the false signal alive long enough to map the missing structure."
+  },
+  {
+    title:"Cartographer / Rearward Map",
+    body:"A surveyor maps only what an entity cannot see behind itself. The resulting chart contains fewer objects, but more causes."
+  },
+  {
+    title:"Bellows Tender / Fourth Draw",
+    body:"A pressure tender delays the fourth draw by one time-suit interval. The organism finishes slower and inherits less burden."
+  }
+];
+function renderManeuverings(){
+  $("#storyCards").innerHTML=maneuverStories.slice(0,4).map(s=>
+    `<div class="story-card"><b>${s.title}</b><br>${s.body}</div>`
+  ).join("");
+}
+
+// ---------- BONGO KEY / TIME SUITS ----------
+const TIME_SUITS=[
+  {name:"DRIFT",rate:1},
+  {name:"OPERATIONS",rate:2.5},
+  {name:"BELLOWS",rate:6},
+  {name:"STILL",rate:0.25}
+];
+let timeSuitIndex=0;
+function setTimeSuit(index){
+  timeSuitIndex=(index+TIME_SUITS.length)%TIME_SUITS.length;
+  state.timeSuit={...TIME_SUITS[timeSuitIndex]};
+  $("#timeSuit").textContent=`SUIT: ${state.timeSuit.name} ×${state.timeSuit.rate}`;
+  toast(`BONGO / ${state.timeSuit.name} ×${state.timeSuit.rate}`);
+}
+addEventListener("keydown",e=>{
+  if(e.key.toLowerCase()==="b") setTimeSuit(timeSuitIndex+1);
+});
+
+// ---------- BELLOWS MULTI-STAGE OPERATIONS ----------
+const bellowsStages=[
+  {name:"PRIME",duration:1.8,delta:{pressure:2,entropy:1}},
+  {name:"DRAW",duration:3.2,delta:{pressure:5,stability:-1}},
+  {name:"EQUALIZE",duration:2.5,delta:{pressure:4,stability:1}},
+  {name:"RECOVER",duration:4.0,delta:{pressure:3,stability:-2,entropy:4}}
+];
+
+function startBellowsCycle(action){
+  if(state.operations.some(op=>op.type==="bellows" && !op.done)){
+    toast("BELLOWS CYCLE ALREADY ACTIVE");
+    return;
+  }
+  if(!canSustain(action.proto.take)){
+    toast("BELLOWS SUPPORT INSUFFICIENT");
+    return;
+  }
+
+  applyTake(action.proto.take);
+  const op={
+    id:`bellows-${Date.now()}`,
+    type:"bellows",
+    name:"BELLOWS CYCLE",
+    stage:0,
+    elapsed:0,
+    done:false,
+    consequence:action.proto.consequence
+  };
+  state.operations.push(op);
+  state.history.unshift({name:"Bellows Cycle Queued",consequence:action.proto.consequence,regime:state.regime,condition:state.condition});
+  renderOperations();
+}
+
+function completeBellowsStage(op){
+  const stage=bellowsStages[op.stage];
+  applyDelta(stage.delta);
+  consequenceImpulse=1;
+  spawnDimensionPop(
+    `BELLOWS / ${stage.name}`,
+    `${stage.name} completed in ${state.timeSuit.name} suit-time. Pressure, stability and burden now inherit this stage before the next one begins.`,
+    op.stage===1
+  );
+
+  op.stage++;
+  op.elapsed=0;
+
+  if(op.stage>=bellowsStages.length){
+    op.done=true;
+    state.sustenance.burden=clamp(state.sustenance.burden+4);
+    resolveRegime(); resolveSustenance();
+    state.history.unshift({name:"Bellows Cycle Complete",consequence:op.consequence,regime:state.regime,condition:state.condition});
+    state.history=state.history.slice(0,6);
+    renderHistory();
+  }
+  renderOperations();
+}
+
+function updateOperations(realDt){
+  const suitDt=realDt*state.timeSuit.rate;
+  for(const op of state.operations){
+    if(op.done)continue;
+    if(op.type==="bellows"){
+      const stage=bellowsStages[op.stage];
+      op.elapsed+=suitDt;
+      if(op.elapsed>=stage.duration) completeBellowsStage(op);
+    }
+  }
+  state.operations=state.operations.filter((op,i)=>!op.done || i>=state.operations.length-4);
+  renderOperations();
+}
+
+function renderOperations(){
+  const q=$("#operationQueue");
+  if(!state.operations.length){
+    q.innerHTML=`<div class="op-row"><span>NO OPERATIONS</span><div class="op-track"></div><span class="op-state">IDLE</span></div>`;
+    return;
+  }
+  q.innerHTML=state.operations.slice(-4).map(op=>{
+    if(op.done)return `<div class="op-row"><span>${op.name}</span><div class="op-track"><div class="op-fill" style="width:100%"></div></div><span class="op-state">DONE</span></div>`;
+    const stage=bellowsStages[op.stage];
+    const p=clamp((op.elapsed/stage.duration)*100);
+    return `<div class="op-row"><span>${stage.name}</span><div class="op-track"><div class="op-fill" style="width:${p}%"></div></div><span class="op-state">${p.toFixed(0)}%</span></div>`;
+  }).join("");
+}
+
+
+
+
+
+// ---------- WINDOW PHASE STACK ----------
+const coreWindows=["cartographer","commandPanel","orientationDock","opsDock","movementLaneDock","cameraRigDock"];
+
+function phaseWindow(id){
+  if(!coreWindows.includes(id))return;
+
+  state.windows.active=id;
+  state.windows.hidden=false;
+
+  for(const wid of coreWindows){
+    const el=document.getElementById(wid);
+    if(!el)continue;
+
+    el.classList.remove("phase-front","phase-back","phase-hidden","phase-peek");
+    el.classList.add(wid===id ? "phase-front" : "phase-back");
+  }
+
+  document.querySelectorAll("[data-window-target]").forEach(b=>
+    b.classList.toggle("active",b.dataset.windowTarget===id)
+  );
+
+  $("#hideAllWindows").classList.remove("active");
+}
+
+function hideAllWindows(){
+  state.windows.hidden=!state.windows.hidden;
+
+  for(const wid of coreWindows){
+    const el=document.getElementById(wid);
+    if(!el)continue;
+
+    el.classList.toggle("phase-hidden",state.windows.hidden);
+
+    if(!state.windows.hidden){
+      el.classList.remove("phase-hidden");
+      el.classList.add(wid===state.windows.active?"phase-front":"phase-back");
+    }
+  }
+
+  $("#hideAllWindows").classList.toggle("active",state.windows.hidden);
+}
+
+document.querySelectorAll("[data-window-target]").forEach(b=>{
+  b.onclick=()=>phaseWindow(b.dataset.windowTarget);
+});
+$("#hideAllWindows").onclick=hideAllWindows;
+
+// Clicking any visible core window brings it to the front without moving the scene.
+for(const wid of coreWindows){
+  const el=document.getElementById(wid);
+  if(!el)continue;
+  el.addEventListener("pointerdown",()=>{
+    if(!state.windows.hidden) phaseWindow(wid);
+  });
+}
+
+// Clean phase mode removes decorative noise but leaves the background untouched.
+document.body.classList.add("phase-clean");
+
+
+// ---------- SUCCESSOR CAMERA / STABLE FOCUS ----------
+const successorSpaces=[
+  {name:"PRIMARY", yaw:0, pitch:0, roll:0, offset:new THREE.Vector3(0,0,0)},
+  {name:"LATERAL", yaw:28, pitch:4, roll:0, offset:new THREE.Vector3(.55,.08,0)},
+  {name:"VERTICAL", yaw:0, pitch:-24, roll:0, offset:new THREE.Vector3(0,.45,.1)},
+  {name:"MANGANAL", yaw:18, pitch:-8, roll:32, offset:new THREE.Vector3(.25,.15,.15)}
+];
+
+const successorCurrent={
+  yaw:0,pitch:0,roll:0,
+  offset:new THREE.Vector3()
+};
+
+function setCameraFocus(mode){
+  state.cameraRig.focusMode = mode==="lane" ? "lane" : "entity";
+  $("#focusEntity").classList.toggle("active",state.cameraRig.focusMode==="entity");
+  $("#focusLane").classList.toggle("active",state.cameraRig.focusMode==="lane");
+  updateCameraMeter();
+}
+
+function cycleSuccessor(){
+  state.cameraRig.successorTarget =
+    (state.cameraRig.successorTarget + 1) % successorSpaces.length;
+  const s=successorSpaces[state.cameraRig.successorTarget];
+  toast(`SUCCESSOR / ${s.name}`);
+}
+
+function toggleDeepJitter(){
+  state.cameraRig.jitterEnabled=!state.cameraRig.jitterEnabled;
+  $("#jitterToggle").classList.toggle("active",state.cameraRig.jitterEnabled);
+  updateCameraMeter();
+}
+
+function updateCameraMeter(){
+  const space=successorSpaces[state.cameraRig.successorTarget];
+  $("#cameraMeter").textContent=
+    `FOCUS ${state.cameraRig.focusMode.toUpperCase()} / `+
+    `SUCCESSOR ${space.name} / `+
+    `SMOOTH ${state.cameraRig.smoothness.toFixed(2)} / `+
+    `JITTER ${state.cameraRig.jitterEnabled?state.cameraRig.jitterStrength.toFixed(3):"0.000"}`;
+}
+
+$("#focusEntity").onclick=()=>setCameraFocus("entity");
+$("#focusLane").onclick=()=>setCameraFocus("lane");
+$("#successorView").onclick=cycleSuccessor;
+$("#jitterToggle").onclick=toggleDeepJitter;
+$("#cameraHide").onclick=()=>phaseWindow("cartographer");
+
+// deterministic layered jitter, no random frame-to-frame shaking
+function deepJitter(t){
+  if(!state.cameraRig.jitterEnabled) return {x:0,y:0,z:0,rx:0,ry:0,rz:0};
+
+  const f=state.cameraRig.jitterFrequency;
+  const s=state.cameraRig.jitterStrength;
+
+  const j1=Math.sin(t*f*1.00+0.7);
+  const j2=Math.sin(t*f*1.73+2.1);
+  const j3=Math.sin(t*f*2.41+4.6);
+  const j4=Math.sin(t*f*.47+1.9);
+
+  return {
+    x:(j1*.55+j3*.18)*s,
+    y:(j2*.42+j4*.21)*s,
+    z:(j3*.24)*s,
+    rx:(j2*.18)*s,
+    ry:(j1*.22)*s,
+    rz:(j4*.16)*s
+  };
+}
+
+function updateSuccessorRig(dt){
+  const target=successorSpaces[state.cameraRig.successorTarget];
+  const a=1-Math.exp(-dt*4.2);
+
+  successorCurrent.yaw=THREE.MathUtils.lerp(successorCurrent.yaw,target.yaw,a);
+  successorCurrent.pitch=THREE.MathUtils.lerp(successorCurrent.pitch,target.pitch,a);
+  successorCurrent.roll=THREE.MathUtils.lerp(successorCurrent.roll,target.roll,a);
+  successorCurrent.offset.lerp(target.offset,a);
+
+  state.cameraRig.successor=THREE.MathUtils.lerp(
+    state.cameraRig.successor,
+    state.cameraRig.successorTarget,
+    a
+  );
+}
+
+// ---------- SCREEN LOYALTY / ROTATION CONCERT ----------
+const DEG = Math.PI / 180;
+
+function normalizeDegrees(v){
+  let n=((v+180)%360+360)%360-180;
+  return Math.abs(n)<1e-9 ? 0 : n;
+}
+
+function setAxis(axis,value){
+  if(axis==="pitch"){
+    state.screen.pitch=THREE.MathUtils.clamp(Number(value)||0,-89,89);
+  }else{
+    state.screen[axis]=normalizeDegrees(Number(value)||0);
+  }
+  syncOrientationUI();
+}
+
+function syncOrientationUI(){
+  $("#yawRange").value=state.screen.yaw;
+  $("#pitchRange").value=state.screen.pitch;
+  $("#rollRange").value=state.screen.roll;
+  $("#yawDeg").textContent=`${Math.round(state.screen.yaw)}°`;
+  $("#pitchDeg").textContent=`${Math.round(state.screen.pitch)}°`;
+  $("#rollDeg").textContent=`${Math.round(state.screen.roll)}°`;
+
+  $("#loyalEntity").classList.toggle("active",state.screen.loyalty==="entity");
+  $("#loyalLane").classList.toggle("active",state.screen.loyalty==="lane");
+  $("#concertToggle").classList.toggle("active",state.screen.concert);
+  $("#pauseRotation").classList.toggle("active",state.screen.paused);
+
+  $("#concertState").textContent=
+    `LOYAL: ${state.screen.loyalty.toUpperCase()} / `+
+    `${state.screen.concert?"CONCERT ON":"CONCERT OFF"} / `+
+    `${state.screen.paused?"PAUSED":"RUNNING"}`;
+}
+
+function setLoyalty(mode){
+  state.screen.loyalty=mode==="lane"?"lane":"entity";
+  syncOrientationUI();
+  toast(`SCREEN LOYALTY / ${state.screen.loyalty.toUpperCase()}`);
+}
+
+function toggleConcert(){
+  state.screen.concert=!state.screen.concert;
+
+  // Starting concert continues from the current manual orientation,
+  // rather than snapping to a predefined start.
+  if(state.screen.concert){
+    state.screen.successorPhase=state.screen.concertPhase;
+  }
+
+  syncOrientationUI();
+}
+
+function toggleRotationPause(){
+  state.screen.paused=!state.screen.paused;
+
+  // Pause preserves the exact phase. Resume uses that successor phase;
+  // nothing is reset and no degree is skipped.
+  if(state.screen.paused){
+    state.screen.successorPhase=state.screen.concertPhase;
+  }else{
+    state.screen.concertPhase=state.screen.successorPhase;
+  }
+
+  syncOrientationUI();
+  toast(state.screen.paused?"ROTATION PAUSED":"ROTATION RESUMED / SUCCESSOR");
+}
+
+function resetRotation(){
+  state.screen.yaw=0;
+  state.screen.pitch=0;
+  state.screen.roll=0;
+  state.screen.concertPhase=0;
+  state.screen.successorPhase=0;
+  syncOrientationUI();
+}
+
+$("#yawRange").addEventListener("input",e=>setAxis("yaw",e.target.value));
+$("#pitchRange").addEventListener("input",e=>setAxis("pitch",e.target.value));
+$("#rollRange").addEventListener("input",e=>setAxis("roll",e.target.value));
+$("#loyalEntity").onclick=()=>setLoyalty("entity");
+$("#loyalLane").onclick=()=>setLoyalty("lane");
+$("#concertToggle").onclick=toggleConcert;
+$("#pauseRotation").onclick=toggleRotationPause;
+$("#resetRotation").onclick=resetRotation;
+
+function updateRotationConcert(dt){
+  if(!state.screen.concert || state.screen.paused)return;
+
+  state.screen.concertPhase += dt;
+
+  // Concerted auto-manganal motion:
+  // yaw leads, pitch opposes vertically, roll/manganal resolves the two.
+  const p=state.screen.concertPhase;
+  state.screen.yaw=normalizeDegrees(state.screen.yaw + dt*13);
+  state.screen.pitch=THREE.MathUtils.clamp(Math.sin(p*.61)*38,-89,89);
+  state.screen.roll=normalizeDegrees(Math.sin(p*.39)*52);
+
+  state.screen.successorPhase=state.screen.concertPhase;
+  syncOrientationUI();
+}
+
+function applyScreenOrientation(t=0){
+  // Stable focus anchor: movement affects subject position, but the camera
+  // tracks the anchor smoothly instead of inheriting raw body jitter.
+  const focusAnchor=new THREE.Vector3();
+
+  if(state.cameraRig.focusMode==="lane"){
+    focusAnchor.set(state.lane*.34,0,0);
+  }else{
+    focusAnchor.set(entity.position.x,entity.position.y,entity.position.z);
+  }
+
+  const focusA=state.cameraRig.focusSmoothness;
+  desiredTarget.lerp(
+    new THREE.Vector3(
+      focusAnchor.x + successorCurrent.offset.x,
+      focusAnchor.y + successorCurrent.offset.y,
+      focusAnchor.z + successorCurrent.offset.z
+    ),
+    focusA
+  );
+
+  cameraTarget.lerp(desiredTarget,focusA);
+
+  // Base look is always geometrically clean: no opacity, warp, or FOV deformation.
+  camera.rotation.order="YXZ";
+  camera.lookAt(cameraTarget);
+
+  const j=deepJitter(t);
+
+  // Manual screen rotation + successor-space rotation are additive.
+  camera.rotateY((state.screen.yaw + successorCurrent.yaw)*DEG + j.ry);
+  camera.rotateX((state.screen.pitch + successorCurrent.pitch)*DEG + j.rx);
+  camera.rotateZ((state.screen.roll + successorCurrent.roll)*DEG + j.rz);
+
+  camera.position.x += j.x;
+  camera.position.y += j.y;
+  camera.position.z += j.z;
+}
+
+
+// ---------- MOVEMENT VS LANE ----------
+function setMovement(mode){
+  state.movement.mode=mode;
+
+  const map={
+    left:{x:-1,z:0},
+    right:{x:1,z:0},
+    forward:{x:0,z:-1},
+    back:{x:0,z:1},
+    hold:{x:0,z:0}
+  };
+  state.movement={mode,...map[mode]};
+
+  document.querySelectorAll("[data-move]").forEach(b=>
+    b.classList.toggle("active",b.dataset.move===mode)
+  );
+
+  toast(`MOVEMENT / ${mode.toUpperCase()}`);
+}
+
+function setLane(value){
+  state.lane=THREE.MathUtils.clamp(Number(value)||0,-2,2);
+  document.querySelectorAll("[data-lane]").forEach(b=>
+    b.classList.toggle("active",Number(b.dataset.lane)===state.lane)
+  );
+  toast(`LANE / ${state.lane===0?"CENTER":state.lane>0?`+${state.lane}`:state.lane}`);
+}
+
+document.querySelectorAll("[data-move]").forEach(b=>
+  b.onclick=()=>setMovement(b.dataset.move)
+);
+document.querySelectorAll("[data-lane]").forEach(b=>
+  b.onclick=()=>setLane(b.dataset.lane)
+);
+
+// ---------- RESOLUTION / CAMERA ----------
+/*
+  POST-SCALAR INFINITY ZOOM
+  -------------------------
+  I–IV are the four cartographic resolutions.
+  IV is NOT a zoom wall. Crossing IV enters scalar infinity.
+
+  Infinity is represented by the unbounded continuous scalar above IV.
+  Camera distance approaches a tiny positive epsilon asymptotically,
+  so the user may continue zooming without numerical camera inversion.
+*/
+const SCALAR = Object.freeze({
+  MIN_LEVEL: 1,
+  MAX_LEVEL: 4,
+  FAR_DISTANCE: 10.2,
+  LEVEL_IV_DISTANCE: 3.55,
+  EPSILON_DISTANCE: 0.035,
+  INFINITY_RATE: 0.16,
+  WHEEL_GAIN: 0.42
+});
+
+const resolutionConfig={
+  1:{name:"FORM",distance:10.2,target:new THREE.Vector3(0,-.3,0)},
+  2:{name:"SYSTEM",distance:7.5,target:new THREE.Vector3(0,-.1,0)},
+  3:{name:"UPTAKE",distance:5.25,target:new THREE.Vector3(0,0,0)},
+  4:{name:"PROPERTY",distance:3.55,target:new THREE.Vector3(0,.12,0)}
+};
+
+// ONE SOURCE OF TRUTH:
+// scalar = 1..4 is the named cartographic range.
+// scalar > 4 is post-scalar magnification and may grow without bound.
+state.scalar = 1;
+
+let desiredDistance = resolutionConfig[1].distance;
+let desiredTarget = new THREE.Vector3(0,-.3,0);
+let cameraTarget = new THREE.Vector3();
+
+function aspectNearMultiplier(){
+  const aspect = Math.max(.25, innerWidth / Math.max(innerHeight,1));
+  if(aspect < .8) return 1.16;
+  if(aspect > 2) return 1.08;
+  return 1.0;
+}
+
+function scalarStage(){
+  return THREE.MathUtils.clamp(Math.floor(state.scalar + 1e-9), 1, 4);
+}
+
+function scalarFraction(){
+  if(state.scalar >= 4) return 0;
+  return state.scalar - Math.floor(state.scalar);
+}
+
+function scalarLabel(){
+  if(state.scalar > 4) return `∞ / ${state.scalar.toFixed(2)}`;
+  const stage = scalarStage();
+  const names = ["","FORM","SYSTEM","UPTAKE","PROPERTY"];
+  return `${["","I","II","III","IV"][stage]} / ${names[stage]}`;
+}
+
+function scalarDistance(value = state.scalar){
+  const s = Math.max(1, Number(value) || 1);
+  if(s <= 4){
+    const lo = Math.floor(s);
+    const hi = Math.min(4, lo + 1);
+    const t = s - lo;
+    const d0 = resolutionConfig[lo].distance * (lo === 4 ? aspectNearMultiplier() : 1);
+    const d1 = resolutionConfig[hi].distance * (hi === 4 ? aspectNearMultiplier() : 1);
+    return THREE.MathUtils.lerp(d0, d1, t);
+  }
+  const depth = s - 4;
+  const start = resolutionConfig[4].distance * aspectNearMultiplier();
+  return SCALAR.EPSILON_DISTANCE +
+    (start - SCALAR.EPSILON_DISTANCE) * Math.exp(-SCALAR.INFINITY_RATE * depth);
+}
+
+function syncScalarUI(){
+  const s = state.scalar;
+  const namedStage = s <= 4 ? Math.round(s) : 0;
+  document.querySelectorAll(".scalar-step[data-resolution]").forEach(e => {
+    e.classList.toggle("active", namedStage !== 0 && Number(e.dataset.resolution) === namedStage);
+  });
+  $("#infinityStep")?.classList.toggle("active", s > 4);
+  state.resolution = scalarStage();
+  desiredDistance = scalarDistance();
+  if(s <= 4){
+    const lo = scalarStage();
+    const hi = Math.min(4, lo + 1);
+    const t = scalarFraction();
+    desiredTarget.copy(resolutionConfig[lo].target).lerp(resolutionConfig[hi].target,t);
+  }
+  updateStatus();
+}
+
+function setScalar(value){
+  state.scalar = Math.max(1, Number(value) || 1);
+  syncScalarUI();
+}
+
+function nudgeScalar(delta){ setScalar(state.scalar + delta); }
+function setResolution(level){ setScalar(THREE.MathUtils.clamp(Math.round(Number(level) || 1),1,4)); }
+function enterInfinity(amount=1){ setScalar(Math.max(4,state.scalar) + Math.max(.001,amount)); }
+function leaveInfinity(amount=1){ setScalar(Math.max(1,state.scalar - Math.max(.001,amount))); }
+
+document.querySelectorAll(".scalar-step[data-resolution]").forEach(
+  b=>b.onclick=()=>setResolution(Number(b.dataset.resolution))
+);
+$("#infinityStep").onclick=()=>{
+  if(state.scalar <= 4) setScalar(4.75);
+  else nudgeScalar(1);
+  toast(`∞ SCALAR ${state.scalar.toFixed(2)}`);
+};
+let wheelAccumulator=0;
+addEventListener("wheel",e=>{
+  if(Math.abs(e.deltaY)<1)return;
+  const amount = Math.min(1.25, Math.abs(e.deltaY) * .0065);
+  nudgeScalar(e.deltaY < 0 ? amount : -amount);
+},{passive:true});
+function focusSystem(id){
+  if(state.resolution<2)setResolution(2);
+  const map={
+    furry:[0,.2,0], enigmous:[0,1.35,.1], bellows:[0,-.2,.4], ground:[0,-2.0,0], neck:[0,1.65,.08], rear:[0,.1,-.15]
+  };
+  desiredTarget.set(...map[id]);
+}
+function configureAspect(){
+  const a=innerWidth/Math.max(innerHeight,1);
+  camera.aspect=a;
+  camera.fov=a<.8?58:a>2?39:45;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+  renderer.setSize(innerWidth,innerHeight,false);
+
+  // Preserve the current semantic zoom depth through orientation changes.
+  desiredDistance = scalarDistance();
+}
+addEventListener("resize",()=>{
+  configureAspect();
+  document.querySelectorAll(".dimension-pop").forEach(clampPopupToViewport);
+});
+
+
+// ---------- ANDROID / TOUCH SCALAR ----------
+let pinchStartDistance = null;
+let pinchStartScalar = 1;
+function touchDistance(touches){
+  if(touches.length < 2) return 0;
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx,dy);
+}
+renderer.domElement.addEventListener("touchstart",e=>{
+  if(e.touches.length===2){
+    pinchStartDistance=touchDistance(e.touches);
+    pinchStartScalar=state.scalar;
+    e.preventDefault();
+  }
+},{passive:false});
+renderer.domElement.addEventListener("touchmove",e=>{
+  if(e.touches.length!==2 || !pinchStartDistance)return;
+  const d=touchDistance(e.touches); if(!d)return;
+  const ratio=Math.max(.05,d/pinchStartDistance);
+  const gesture=Math.log(ratio);
+  setScalar(pinchStartScalar + gesture*4.8);
+  e.preventDefault();
+},{passive:false});
+renderer.domElement.addEventListener("touchend",e=>{
+  if(e.touches.length<2)pinchStartDistance=null;
+},{passive:true});
+$("#scalar").addEventListener("touchmove",e=>e.preventDefault(),{passive:false});
+
+// ---------- NECKY NECKS INPUT ----------
+let neckAim=0, neckAimY=0;
+function pointerAim(clientX,clientY){
+  const nx=(clientX/innerWidth)*2-1, ny=(clientY/innerHeight)*2-1;
+  neckAim=clamp(nx,-1,1); neckAimY=clamp(-ny,-1,1);
+}
+renderer.domElement.addEventListener("pointermove",e=>pointerAim(e.clientX,e.clientY));
+renderer.domElement.addEventListener("pointerdown",e=>pointerAim(e.clientX,e.clientY));
+
+// ---------- LOOP ----------
+let consequenceImpulse=0;
+const clock=new THREE.Clock();
+function confineEntity(){
+  entity.position.x=clamp(entity.position.x,-1.15,1.15);
+  entity.position.y=clamp(entity.position.y,-.15,.15);
+  entity.position.z=clamp(entity.position.z,-.35,.35);
+}
+function updateStatus(){
+  const beyond = state.scalar > 4;
+  $("#status").innerHTML=
+    `SCALAR ${scalarLabel()}`+
+    `<br>VALUE ${state.scalar.toFixed(3)}`+
+    `<br>ZOOM DISTANCE ${Math.max(camera.position.z,0).toFixed(4)}`+
+    `<br>${state.regime}<br>${state.condition}`+
+    `<br>${beyond ? "POST-SCALAR / MAXEST" : "CARTOGRAPHIC SCALAR"}`;
+}
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+  const t=performance.now()/1000, pressure=state.properties.pressure/100, entropy=state.properties.entropy/100;
+  updateOperations(dt);
+  updateRotationConcert(dt);
+  updateSuccessorRig(dt);
+  bellows.scale.y=.78+Math.sin(t*1.35)*(.035+pressure*.07);
+  entity.rotation.y=Math.sin(t*.13)*.075;
+
+  // Lane is track placement; movement is body motion. They do not overwrite each other.
+  const laneX=state.lane*.34;
+  const moveX=state.movement.x*.16;
+  const moveZ=state.movement.z*.12;
+  const moveA=1-Math.exp(-dt*6.0);
+  entity.position.x=THREE.MathUtils.lerp(entity.position.x,laneX+moveX,moveA);
+  entity.position.z=THREE.MathUtils.lerp(entity.position.z,moveZ,moveA);
+  dust.rotation.y+=.00005+entropy*.00018;
+  neckPivot.rotation.y=THREE.MathUtils.lerp(neckPivot.rotation.y,neckAim*.65,.08);
+  neckPivot.rotation.x=THREE.MathUtils.lerp(neckPivot.rotation.x,neckAimY*.16,.08);
+  if(consequenceImpulse>.001){consequenceImpulse*=.91;furry.material.opacity=.055+consequenceImpulse*.09}
+  else furry.material.opacity=THREE.MathUtils.lerp(furry.material.opacity,.055,.06);
+  confineEntity();
+  {
+    // No maximum zoom clamp: post-scalar depth may continue indefinitely.
+    // EPSILON_DISTANCE is only a numerical singularity guard.
+    const targetZ = Math.max(SCALAR.EPSILON_DISTANCE, desiredDistance);
+    camera.position.z = Math.max(
+      SCALAR.EPSILON_DISTANCE,
+      THREE.MathUtils.lerp(
+        camera.position.z,
+        targetZ,
+        1-Math.exp(-dt*(1/state.cameraRig.smoothness))
+      )
+    );
+  }
+  const camA=1-Math.exp(-dt*(1/state.cameraRig.smoothness));
+  camera.position.x=THREE.MathUtils.lerp(camera.position.x,0,camA);
+  camera.position.y=THREE.MathUtils.lerp(
+    camera.position.y,
+    clamp(desiredTarget.y*.42,-1.2,1.2),
+    camA*.72
+  );
+  applyScreenOrientation(t);
+  renderer.render(scene,camera);
+}
+configureAspect(); renderRoles(); renderRearDiagnostic(); renderManeuverings(); renderOperations(); setTimeSuit(0); setResolution(1); setMovement("hold"); setLane(0); setLoyalty("entity"); syncOrientationUI(); phaseWindow("cartographer"); setCameraFocus("entity"); updateCameraMeter(); updateStatus(); animate();
+</script>
+</body>
+</html>
