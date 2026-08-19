@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Degree Envelope — Combat & Levels</title>
+<style>
+:root{--bg:#070910;--panel:#101624;--ink:#eef4ff;--muted:#8994a9;--line:#263149;--hot:#f3ff7a;--cyan:#7fe8ff;--danger:#ff7b78;--violet:#bba4ff}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 50% -20%,#202c48 0,#0c111c 40%,#070910 76%);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}body{overflow-x:hidden}
+nav{height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 5vw;border-bottom:1px solid #ffffff14;backdrop-filter:blur(16px);position:sticky;top:0;z-index:20;background:#070a10bb}.brand{font-weight:900;letter-spacing:.08em}.brand span{color:var(--hot)}nav small{color:var(--muted)}
+.hero{min-height:45vh;display:grid;place-items:center;text-align:center;padding:6vh 6vw 4vh}.hero h1{font-size:clamp(3rem,8vw,7.4rem);line-height:.83;letter-spacing:-.07em;margin:0;max-width:1100px}.hero h1 i{font-style:normal;color:var(--hot)}.hero p{max-width:760px;color:#aeb8ca;font-size:clamp(1rem,1.7vw,1.18rem);line-height:1.6;margin:26px auto}.badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.badges b{font-size:.74rem;border:1px solid #ffffff20;border-radius:999px;padding:7px 11px;background:#ffffff08}
+.wrap{width:min(1220px,95vw);margin:0 auto 90px}.modebar{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px}.mode{border:1px solid #ffffff18;background:#0d1320;color:#aab4c8;padding:13px 10px;border-radius:14px;font-weight:850;cursor:pointer}.mode.active{background:var(--hot);color:#0a0d11;border-color:var(--hot)}
+.gameShell{border:1px solid #ffffff1a;border-radius:26px;overflow:hidden;background:#0b0f18;box-shadow:0 35px 110px #0009}.topbar{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid #ffffff12;background:#111726}.status{display:flex;gap:7px;flex-wrap:wrap}.pill{padding:7px 9px;border-radius:9px;background:#070a10;border:1px solid #ffffff14;font:700 11px ui-monospace,monospace;color:#d5def0}.hint{color:var(--muted);font-size:11px;text-align:right;line-height:1.4}.stage{position:relative;aspect-ratio:16/8.2;min-height:500px}canvas{display:block;width:100%;height:100%;touch-action:none}.hud{pointer-events:none;position:absolute;left:14px;bottom:14px;display:grid;gap:6px}.hud div{background:#0a0d14d8;border:1px solid #ffffff12;padding:7px 9px;border-radius:9px;font:700 11px ui-monospace,monospace}
+.weaponPanel,.levelPanel{position:absolute;right:14px;top:14px;width:min(310px,45vw);padding:12px;border-radius:16px;background:#0b101bdc;border:1px solid #ffffff18;backdrop-filter:blur(10px)}.weaponPanel h3,.levelPanel h3{margin:0 0 9px;font-size:13px}.weaponGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.weaponBtn{padding:9px 5px;border-radius:9px;border:1px solid #ffffff16;background:#121a28;color:#dbe5f6;font-size:11px;font-weight:800;cursor:pointer}.weaponBtn.active{border-color:var(--hot);color:var(--hot)}.levelPanel{display:none}.levelPanel.visible{display:block}.levelLine{height:7px;background:#ffffff10;border-radius:99px;overflow:hidden;margin:9px 0}.levelLine span{display:block;height:100%;width:0;background:var(--hot)}.mission{font-size:11px;color:#aab5c8;line-height:1.45}.levelDots{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:10px}.dot{aspect-ratio:1;border-radius:6px;border:1px solid #ffffff16;background:#111827;display:grid;place-items:center;font:800 10px ui-monospace;color:#758198}.dot.done{background:#23301a;color:var(--hot)}.dot.now{border-color:var(--hot);color:var(--hot)}
+.mobile{position:absolute;left:0;right:0;bottom:10px;display:none;justify-content:space-between;align-items:end;padding:0 12px;pointer-events:none;z-index:8}
+.pad,.actions{pointer-events:auto}.pad{display:grid;gap:7px;grid-template-columns:54px 54px 54px;grid-template-areas:". up ." "left down right"}
+.btn{width:54px;height:54px;border:1px solid #ffffff2a;background:#0e1726e8;color:#fff;border-radius:16px;font-weight:900;backdrop-filter:blur(12px);touch-action:none;user-select:none;-webkit-user-select:none}
+.btn:active,.btn.held{transform:scale(.96);background:#22314b}
+.up{grid-area:up}.left{grid-area:left}.down{grid-area:down}.right{grid-area:right}
+.actions{display:grid;grid-template-columns:68px 68px;gap:8px}.actions .btn{width:68px;font-size:10px}
+.warpDock{display:none;position:absolute;left:12px;right:12px;bottom:126px;z-index:9;padding:12px 14px;border:1px solid #ffffff20;border-radius:18px;background:#0a101be8;backdrop-filter:blur(14px)}
+.warpDock .row{display:grid;grid-template-columns:58px 1fr 54px;gap:9px;align-items:center;margin:7px 0;font:800 10px ui-monospace,monospace}
+.warpDock input{width:100%;accent-color:#f3ff7a;touch-action:pan-x}
+.warpDock output{text-align:right;color:#f3ff7a}
+body.warp-mode .warpDock{display:block}
+body.warp-mode .actions .combatOnly{display:none}
+body:not(.warp-mode) .actions .warpOnly{display:none}
+
+.features{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}.card{padding:20px;border:1px solid #ffffff13;background:#ffffff06;border-radius:18px}.card h3{margin:0 0 7px}.card p{margin:0;color:#929db1;line-height:1.5;font-size:.9rem}
+.toast{position:absolute;left:50%;top:18%;transform:translate(-50%,-20px);opacity:0;padding:10px 15px;background:#f3ff7a;color:#0b0e13;border-radius:999px;font-weight:900;font-size:12px;transition:.25s;pointer-events:none}.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:760px){nav small{display:none}.hero{min-height:34vh}.stage{min-height:690px;aspect-ratio:auto}.topbar{align-items:flex-start;gap:8px;flex-wrap:wrap}.hint{max-width:none;width:100%;text-align:left}.mobile{display:flex}.features{grid-template-columns:1fr}.modebar{grid-template-columns:1fr 1fr}.weaponPanel,.levelPanel{width:190px;max-width:46vw}.weaponGrid{grid-template-columns:1fr}.levelDots{grid-template-columns:repeat(4,1fr)}#warpPanel{top:10px!important;left:10px!important;width:calc(100% - 20px)!important;max-width:none!important}.hud{bottom:205px}body.warp-mode .hud{bottom:265px}}
+
+</style>
+</head>
+<body>
+<nav><div class="brand">DEGREE <span>ENVELOPE II</span></div><small>physics • combat • arsenal • progression</small></nav>
+<section class="hero"><div><h1>PLAY THE<br><i>WHOLE ARC.</i></h1><p>Pick things up, draw a weapon, fight physical enemies, clear a multitude of levels, and warp entire arenas into traversable shapes. Objects still keep mass, angle, impulse and angular velocity.</p><div class="badges"><b>WASD MOVE</b><b>E PICKUP</b><b>Q DROP</b><b>R/F ROTATE</b><b>J ATTACK</b><b>K DASH</b><b>1–3 WEAPONS</b><b>Z/X BEND</b><b>C/V STRETCH</b></div></div></section>
+<main class="wrap">
+<div class="modebar"><button class="mode active" data-mode="physics">PHYSICS</button><button class="mode" data-mode="combat">COMBAT</button><button class="mode" data-mode="arsenal">DRAW & FIGHT</button><button class="mode" data-mode="levels">LEVELS</button><button class="mode" data-mode="warp">WARP RUN</button></div>
+<section class="gameShell">
+<div class="topbar"><div class="status"><div class="pill" id="modeRead">MODE: PHYSICS</div><div class="pill" id="held">HELD: NONE</div><div class="pill" id="weapon">WEAPON: BLADE</div><div class="pill" id="hp">HP: 100</div><div class="pill" id="xp">XP: 0</div><div class="pill" id="lvl">LEVEL: 1/12</div><div class="pill" id="warpRead">WARP: --</div></div><div class="hint" id="hint">Walk near an object → E<br>Rotate held object → R / F</div></div>
+<div class="stage"><canvas id="game"></canvas><div class="toast" id="toast">LEVEL COMPLETE</div>
+<div class="hud"><div id="readout">x 0 · y 0</div><div id="physics">ω 0.00 · torque 0.00</div><div id="objective">FREE PLAY</div></div>
+<div class="weaponPanel" id="weaponPanel"><h3>DRAW A WEAPON</h3><div class="weaponGrid"><button class="weaponBtn active" data-weapon="blade">1 · BLADE</button><button class="weaponBtn" data-weapon="hammer">2 · HAMMER</button><button class="weaponBtn" data-weapon="pulse">3 · PULSE</button></div></div>
+<div class="levelPanel" id="levelPanel"><h3 id="missionTitle">LEVEL 01 · FIRST CONTACT</h3><div class="mission" id="missionText">Pick up 2 objects.</div><div class="levelLine"><span id="progress"></span></div><div class="levelDots" id="levelDots"></div></div>
+<div class="warpPanel" id="warpPanel" style="display:none;position:absolute;left:14px;top:14px;width:min(330px,48vw);padding:12px;border-radius:16px;background:#0b101bdc;border:1px solid #ffffff18;backdrop-filter:blur(10px)">
+      <h3 style="margin:0 0 8px;font-size:13px">WARP SIGNATURE</h3>
+      <div class="mission" id="warpMission">Bend and stretch the arena until the gate stabilizes.</div>
+      <div class="levelLine"><span id="warpProgress"></span></div>
+      <div class="mission" id="warpNumbers">BEND 0° · STRETCH 1.00 · STABILITY 0%</div>
+    </div>
+    <div class="warpDock" id="warpDock">
+      <div class="row"><span>BEND</span><input id="bendSlider" type="range" min="-70" max="70" step="1" value="0"><output id="bendOut">0°</output></div>
+      <div class="row"><span>STRETCH</span><input id="stretchSlider" type="range" min="62" max="155" step="1" value="100"><output id="stretchOut">1.00×</output></div>
+    </div>
+    <div class="mobile">
+      <div class="pad">
+        <button class="btn up" data-key="ArrowUp">JUMP</button>
+        <button class="btn left" data-key="ArrowLeft">◀</button>
+        <button class="btn down" data-key="ArrowDown">▼</button>
+        <button class="btn right" data-key="ArrowRight">▶</button>
+      </div>
+      <div class="actions">
+        <button class="btn combatOnly" data-key="e">PICK</button>
+        <button class="btn combatOnly" data-key="j">HIT</button>
+        <button class="btn warpOnly" data-key="e">PICK</button>
+        <button class="btn warpOnly" data-key="ArrowUp">JUMP</button>
+      </div>
+    </div>
+</div></section>
+<section class="features"><div class="card"><h3>Warp Run</h3><p>Reshape each arena itself. Match its bend and stretch signature, stabilize the portal, then physically reach the exit to travel onward.</p></div><div class="card"><h3>Combat</h3><p>Enemies have health, knockback and simple pursuit. Melee strikes transfer impulse; pulse shots carry momentum.</p></div><div class="card"><h3>Draw & fight</h3><p>Switch among blade, hammer and pulse weapons. Each one has a different reach, damage, cooldown and physical feel.</p></div><div class="card"><h3>Level multitude</h3><p>Twelve missions move from pickup training through combat, throwing, rotation, survival and mixed mastery.</p></div><div class="card"><h3>Progression</h3><p>Completing missions grants XP. Difficulty rises with enemy count, health and objective complexity.</p></div></section>
+</main>
+<script>
+const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d');let W=0,H=0,dpr=1;
+function resize(){const r=canvas.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);W=r.width;H=r.height}addEventListener('resize',resize);resize();
+const keys={},pressed={};addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(!keys[k])pressed[k]=true;keys[k]=true;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault()});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key.toLowerCase();const on=e=>{e.preventDefault();try{b.setPointerCapture(e.pointerId)}catch(_){}if(!keys[k])pressed[k]=true;keys[k]=true;b.classList.add('held')};const off=e=>{e.preventDefault();keys[k]=false;b.classList.remove('held')};b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);b.addEventListener('lostpointercapture',off)});
+const world={gravity:1100,drag:.995},arenaId=0,player={x:220,y:260,vx:0,vy:0,r:20,face:1,onGround:false,held:null,hp:100,maxHp:100,xp:0,weapon:'blade',attackCD:0,dashCD:0,invuln:0};let mode='physics',enemies=[],shots=[],effects=[],stats={pickups:0,kills:0,throws:0,rot:0,survive:0};
+const warpArenas=[
+ {name:'FOLD DOCK',targetBend:18,targetStretch:1.16,gateY:.66},
+ {name:'SHEAR COURT',targetBend:-28,targetStretch:.82,gateY:.52},
+ {name:'LONG HALL',targetBend:34,targetStretch:1.34,gateY:.44},
+ {name:'INVERSE PIT',targetBend:-42,targetStretch:1.12,gateY:.70},
+ {name:'TENSION SPIRE',targetBend:52,targetStretch:.74,gateY:.34},
+ {name:'FINAL APERTURE',targetBend:-60,targetStretch:1.42,gateY:.40}
+];
+let warp={chapter:0,bend:0,stretch:1,stability:0,gateOpen:false,complete:false};
+const bendSlider=document.querySelector('#bendSlider'),stretchSlider=document.querySelector('#stretchSlider');
+bendSlider?.addEventListener('input',()=>{warp.bend=+bendSlider.value});
+stretchSlider?.addEventListener('input',()=>{warp.stretch=+stretchSlider.value/100});
+function syncWarpControls(){
+ if(bendSlider && document.activeElement!==bendSlider)bendSlider.value=Math.round(warp.bend);
+ if(stretchSlider && document.activeElement!==stretchSlider)stretchSlider.value=Math.round(warp.stretch*100);
+ const bo=document.querySelector('#bendOut'),so=document.querySelector('#stretchOut');
+ if(bo)bo.textContent=Math.round(warp.bend)+'°';
+ if(so)so.textContent=warp.stretch.toFixed(2)+'×';
+}
+
+function warpDef(){return warpArenas[Math.max(0,Math.min(warpArenas.length-1,warp.chapter))]}
+function warpStability(){
+ const d=warpDef();
+ const eb=Math.abs(warp.bend-d.targetBend)/70;
+ const es=Math.abs(warp.stretch-d.targetStretch)/.65;
+ return clamp(1-(eb*.58+es*.42),0,1);
+}
+function warpedPlatform(p){
+ if(mode!=='warp')return p;
+ const cx=W*.5,nx=(p.x+p.w*.5-cx)/Math.max(1,W*.5);
+ const shift=Math.sin(nx*Math.PI*.82)*(warp.bend/70)*H*.10;
+ const nw=clamp(p.w*warp.stretch,54,W*.62);
+ const center=clamp(cx+(p.x+p.w*.5-cx)*warp.stretch,nw*.5+8,W-nw*.5-8);
+ return {x:center-nw*.5,y:clamp(p.y-shift,H*.22,floorY()-30),w:nw,h:p.h};
+}
+function startWarpChapter(n){
+ warp.chapter=n; arenaId=n%12; warp.bend=0; warp.stretch=1; warp.stability=0; warp.gateOpen=false;
+ player.hp=player.maxHp; player.x=Math.max(48,W*.10); player.y=80; player.vx=player.vy=0; player.held=null; syncWarpControls();
+ enemies=[]; shots=[]; effects=[];
+ objects.forEach((o,i)=>{o.held=false;o.vx=o.vy=o.av=0;o.x=W*(.24+i*.11);o.y=70+(i%2)*34});
+ const t=document.querySelector('#toast'); t.textContent='WARP ARENA '+(n+1)+' · '+warpDef().name; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),800);
+}
+function completeWarp(){
+ if(warp.chapter<warpArenas.length-1){startWarpChapter(warp.chapter+1)}
+ else if(!warp.complete){warp.complete=true;player.xp+=750;const t=document.querySelector('#toast');t.textContent='WARP CAMPAIGN COMPLETE +750 XP';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1500)}
+}
+
+const weaponDefs={blade:{name:'BLADE',damage:24,reach:82,cool:.34,knock:280},hammer:{name:'HAMMER',damage:38,reach:70,cool:.58,knock:520},pulse:{name:'PULSE',damage:18,reach:0,cool:.42,knock:190}};
+const levels=[
+['FIRST CONTACT','Pick up 2 objects.','pickups',2],['DEGREE SCHOOL','Rotate held objects through 180° total.','rot',180],['THROW TEST','Throw 3 objects.','throws',3],['FIRST DUEL','Defeat 2 enemies.','kills',2],['CROWD CONTROL','Defeat 4 enemies.','kills',4],['IMPACT','Defeat 3 enemies with any weapon.','kills',3],['MOTION LINE','Throw 5 objects while enemies pursue.','throws',5],['DEGREE STORM','Accumulate 540° of rotation.','rot',540],['SURVIVE','Stay alive for 20 seconds.','survive',20],['ARENA','Defeat 6 enemies.','kills',6],['HEAVY WAVE','Defeat 8 tougher enemies.','kills',8],['ENVELOPE MASTER','Defeat 10 enemies and survive.','kills',10]
+];let level=0,levelBase=0,levelDone=Array(levels.length).fill(false),levelArmed=false;
+function arena(){
+ const F=H*.88;
+ const defs=[
+  {name:'HANGAR',sky:['#151d2d','#080b11'],floor:F,platforms:[],hazards:[]},
+  {name:'STEP YARD',sky:['#1a2230','#090d13'],floor:F,platforms:[{x:.46*W,y:.69*H,w:.22*W,h:14}],hazards:[]},
+  {name:'TWIN DECK',sky:['#17212b','#090b10'],floor:F,platforms:[{x:.20*W,y:.67*H,w:.22*W,h:14},{x:.68*W,y:.58*H,w:.22*W,h:14}],hazards:[]},
+  {name:'PIT LINE',sky:['#241a22','#0a090d'],floor:F,platforms:[{x:.36*W,y:.68*H,w:.28*W,h:14}],hazards:[{x:.04*W,w:.18*W},{x:.78*W,w:.18*W}]},
+  {name:'ASCENT',sky:['#17202c','#080b11'],floor:F,platforms:[{x:.13*W,y:.72*H,w:.18*W,h:14},{x:.41*W,y:.58*H,w:.18*W,h:14},{x:.70*W,y:.44*H,w:.18*W,h:14}],hazards:[]},
+  {name:'BRIDGE BREAK',sky:['#201826','#090a10'],floor:F,platforms:[{x:.07*W,y:.70*H,w:.23*W,h:14},{x:.38*W,y:.62*H,w:.24*W,h:14},{x:.71*W,y:.70*H,w:.22*W,h:14}],hazards:[{x:.31*W,w:.07*W},{x:.63*W,w:.08*W}]},
+  {name:'LOW CEILING',sky:['#111b24','#070a0e'],floor:F,platforms:[{x:.24*W,y:.54*H,w:.52*W,h:14}],hazards:[]},
+  {name:'DEGREE TOWER',sky:['#1b1b2a','#080910'],floor:F,platforms:[{x:.08*W,y:.72*H,w:.18*W,h:14},{x:.31*W,y:.60*H,w:.18*W,h:14},{x:.54*W,y:.48*H,w:.18*W,h:14},{x:.77*W,y:.36*H,w:.16*W,h:14}],hazards:[]},
+  {name:'RED TRENCH',sky:['#291718','#0b0809'],floor:F,platforms:[{x:.33*W,y:.70*H,w:.34*W,h:14}],hazards:[{x:.08*W,w:.18*W},{x:.74*W,w:.18*W}]},
+  {name:'CROSSWORK',sky:['#132027','#070a0f'],floor:F,platforms:[{x:.14*W,y:.56*H,w:.28*W,h:14},{x:.58*W,y:.56*H,w:.28*W,h:14},{x:.40*W,y:.72*H,w:.20*W,h:14}],hazards:[]},
+  {name:'HEAVY FOUNDRY',sky:['#251d16','#0d0a08'],floor:F,platforms:[{x:.08*W,y:.68*H,w:.20*W,h:14},{x:.40*W,y:.50*H,w:.20*W,h:14},{x:.72*W,y:.68*H,w:.20*W,h:14}],hazards:[{x:.31*W,w:.08*W},{x:.61*W,w:.08*W}]},
+  {name:'MASTER ENVELOPE',sky:['#1c1730','#080810'],floor:F,platforms:[{x:.08*W,y:.70*H,w:.18*W,h:14},{x:.30*W,y:.55*H,w:.16*W,h:14},{x:.54*W,y:.55*H,w:.16*W,h:14},{x:.76*W,y:.70*H,w:.16*W,h:14},{x:.40*W,y:.36*H,w:.20*W,h:14}],hazards:[{x:.27*W,w:.03*W},{x:.70*W,w:.05*W}]}
+ ]; return defs[Math.max(0,Math.min(defs.length-1,arenaId))];
+}
+function floorY(){return arena().floor}
+function platformLanding(x,prevY,newY,r){let best=floorY()-r;for(const bp of arena().platforms){const p=warpedPlatform(bp);const top=p.y-r;if(x>p.x-r&&x<p.x+p.w+r&&prevY<=top+4&&newY>=top)best=Math.min(best,top)}return best}
+function inHazard(x){return mode!=='warp'&&arena().hazards.some(h=>x>h.x&&x<h.x+h.w)}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+function makeObj(x,y,w,h,m,name,color,a=0){return{x,y,vx:0,vy:0,w,h,m,name,color,a,av:0,torque:0,held:false}}
+let objects=[makeObj(510,150,52,52,2,'crate','#f3ff7a',.1),makeObj(635,120,82,25,1.2,'beam','#7fe8ff',.6),makeObj(770,190,38,72,2.7,'core','#ff9b73',-.2),makeObj(900,150,44,44,.8,'light','#bba4ff',.45),makeObj(385,100,30,30,.45,'cube','#f6f7fb')];
+function spawnEnemy(i=0,tough=false){const side=i%2?1:-1;enemies.push({x:side>0?W-70:70,y:floorY()-22,vx:0,vy:0,r:20,hp:tough?95:60,maxHp:tough?95:60,hit:0,attack:0,dead:false})}
+function resetEnemies(n,tough=false){enemies=[];for(let i=0;i<n;i++)spawnEnemy(i,tough)}
+function nearest(){let best=null,bd=100;for(const o of objects){if(o.held)continue;const d=Math.hypot(o.x-player.x,o.y-player.y);if(d<bd){bd=d;best=o}}return best}
+function setWeapon(w){player.weapon=w;document.querySelectorAll('.weaponBtn').forEach(b=>b.classList.toggle('active',b.dataset.weapon===w))}
+document.querySelectorAll('.weaponBtn').forEach(b=>b.onclick=()=>setWeapon(b.dataset.weapon));
+function setMode(m){mode=m;document.body.classList.toggle('warp-mode',m==='warp');document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));document.querySelector('#modeRead').textContent='MODE: '+m.toUpperCase();document.querySelector('#levelPanel').classList.toggle('visible',m==='levels');document.querySelector('#warpPanel').style.display=m==='warp'?'block':'none';if(m!=='levels'&&m!=='warp')arenaId=0;if(m==='combat'||m==='arsenal'){resetEnemies(m==='combat'?4:6)}if(m==='levels')startLevel(level);if(m==='warp')startWarpChapter(warp.chapter);document.querySelector('#hint').innerHTML=m==='physics'?'Walk near an object → E<br>Rotate held object → R / F':m==='levels'?'Complete objective to advance<br>J attack · K dash':m==='warp'?'MOBILE: use Bend + Stretch sliders<br>Match target → run to the right gate':'J attack · K dash<br>1–3 switch weapon'}
+document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+function startLevel(n){level=n;arenaId=n;stats={pickups:0,kills:0,throws:0,rot:0,survive:0};levelBase=0;levelArmed=true;player.hp=player.maxHp;player.x=W*.16;player.y=120;objects.forEach((o,i)=>{o.held=false;o.vx=o.vy=o.av=0;o.x=W*(.28+i*.13);o.y=70+(i%2)*42});player.held=null;const tough=n>=10;const count=n<3?0:n===3?2:n===4?4:n===5?3:n===6?4:n===7?4:n===8?5:n===9?6:n===10?8:10;resetEnemies(count,tough);renderLevelUI()}
+function renderLevelUI(){const d=levels[level];document.querySelector('#missionTitle').textContent=`LEVEL ${String(level+1).padStart(2,'0')} · ${d[0]}`;document.querySelector('#missionText').textContent=d[1];const val=stats[d[2]],p=clamp(val/d[3],0,1);document.querySelector('#progress').style.width=(p*100)+'%';document.querySelector('#objective').textContent=`${d[2].toUpperCase()} ${Math.floor(val)} / ${d[3]}`;const dots=document.querySelector('#levelDots');dots.innerHTML='';for(let i=0;i<levels.length;i++){const el=document.createElement('div');el.className='dot '+(levelDone[i]?'done ': '')+(i===level?'now':'');el.textContent=i+1;dots.appendChild(el)}}
+function completeLevel(){if(!levelArmed)return;levelArmed=false;levelDone[level]=true;player.xp+=100+level*25;const t=document.querySelector('#toast');t.textContent=level===levels.length-1?'ALL LEVELS COMPLETE':'LEVEL COMPLETE +'+(100+level*25)+' XP';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),900);if(level<levels.length-1){setTimeout(()=>startLevel(level+1),950)}}
+function attack(){if(player.attackCD>0)return;const w=weaponDefs[player.weapon];player.attackCD=w.cool;if(player.weapon==='pulse'){shots.push({x:player.x+player.face*25,y:player.y-12,vx:player.face*620,life:1.2,damage:w.damage,knock:w.knock})}else{effects.push({type:'arc',x:player.x,y:player.y-10,face:player.face,life:.14,weapon:player.weapon});for(const e of enemies){if(e.dead)continue;const dx=e.x-player.x,dy=e.y-player.y;if(Math.sign(dx||1)===player.face&&Math.hypot(dx,dy)<w.reach){e.hp-=w.damage;e.vx+=player.face*w.knock;e.vy-=120;e.hit=.12;if(e.hp<=0)killEnemy(e)}}}}
+function killEnemy(e){if(e.dead)return;e.dead=true;stats.kills++;player.xp+=20;effects.push({type:'burst',x:e.x,y:e.y,life:.35});setTimeout(()=>{if(mode!=='levels'&&(mode==='combat'||mode==='arsenal'))spawnEnemy(Math.random()>.5?1:0)},700)}
+function update(dt){dt=Math.min(dt,.033);player.attackCD=Math.max(0,player.attackCD-dt);player.dashCD=Math.max(0,player.dashCD-dt);player.invuln=Math.max(0,player.invuln-dt);
+if(pressed['1'])setWeapon('blade');if(pressed['2'])setWeapon('hammer');if(pressed['3'])setWeapon('pulse');if(pressed['j'])attack();
+if(pressed['k']&&player.dashCD<=0){player.vx+=player.face*460;player.dashCD=.8;player.invuln=.22;effects.push({type:'dash',x:player.x,y:player.y,life:.22})}
+if(mode==='warp'){
+ if(keys['z'])warp.bend-=42*dt;
+ if(keys['x'])warp.bend+=42*dt;
+ if(keys['c'])warp.stretch-=.36*dt;
+ if(keys['v'])warp.stretch+=.36*dt;
+ warp.bend=clamp(warp.bend,-70,70); warp.stretch=clamp(warp.stretch,.62,1.55);
+ warp.stability=warpStability(); warp.gateOpen=warp.stability>.90; syncWarpControls();
+}
+const left=keys['a']||keys['arrowleft'],right=keys['d']||keys['arrowright'],up=keys['w']||keys['arrowup'];player.vx+=(right-left)*1200*dt;player.vx*=player.onGround?.82:.985;player.vx=clamp(player.vx,-320,320);if(right)player.face=1;if(left)player.face=-1;if(up&&player.onGround){player.vy=-480;player.onGround=false}player.vy+=world.gravity*dt;player.x+=player.vx*dt;const prevPY=player.y;player.y+=player.vy*dt;const fy=platformLanding(player.x,prevPY,player.y,player.r);if(player.vy>=0&&player.y>fy){player.y=fy;player.vy=0;player.onGround=true}else player.onGround=false;player.x=clamp(player.x,player.r,W-player.r);if(inHazard(player.x)&&player.y>floorY()-player.r-10&&player.invuln<=0){player.hp-=18;player.invuln=.65;player.vy=-330;effects.push({type:'hurt',x:player.x,y:player.y,life:.2});if(player.hp<=0){player.hp=player.maxHp;if(mode==='levels')startLevel(level)}}
+if(pressed['e']&&!player.held){const n=nearest();if(n){player.held=n;n.held=true;stats.pickups++}}if(pressed['q']&&player.held){player.held.held=false;player.held=null}if(pressed[' ']&&player.held){const o=player.held;o.held=false;o.vx=player.face*540+player.vx*.5;o.vy=-250;o.av+=player.face*4;player.held=null;stats.throws++}
+for(const o of objects){o.torque=0;if(o.held){const tx=player.x+player.face*58,ty=player.y-18,k=28,damp=8;o.vx+=((tx-o.x)*k-o.vx*damp)*dt;o.vy+=((ty-o.y)*k-o.vy*damp)*dt;if(keys['r']){o.torque+=13;stats.rot+=Math.abs(13/o.m*dt*180/Math.PI)}if(keys['f']){o.torque-=13;stats.rot+=Math.abs(13/o.m*dt*180/Math.PI)}o.av+=o.torque/o.m*dt;o.av*=.96;o.a+=o.av*dt;o.x+=o.vx*dt;o.y+=o.vy*dt}else{o.vy+=world.gravity*dt;o.x+=o.vx*dt;o.y+=o.vy*dt;o.a+=o.av*dt;o.vx*=world.drag;o.av*=.995;const rad=Math.max(o.w,o.h)*.42,prevOY=o.y-o.vy*dt,f=platformLanding(o.x,prevOY,o.y,rad);if(o.vy>=0&&o.y>f){o.y=f;o.vy*=-.28;o.vx*=.78;o.av*=.82;if(Math.abs(o.vy)<20)o.vy=0}if(o.x<rad){o.x=rad;o.vx=Math.abs(o.vx)*.55}if(o.x>W-rad){o.x=W-rad;o.vx=-Math.abs(o.vx)*.55}}}
+for(const e of enemies){if(e.dead)continue;e.hit=Math.max(0,e.hit-dt);e.attack=Math.max(0,e.attack-dt);e.vy+=world.gravity*dt;const dx=player.x-e.x;if(Math.abs(dx)>48)e.vx+=Math.sign(dx)*240*dt;e.vx*=.91;e.x+=e.vx*dt;const prevEY=e.y;e.y+=e.vy*dt;const ef=platformLanding(e.x,prevEY,e.y,e.r);if(e.vy>=0&&e.y>ef){e.y=ef;e.vy=0}e.x=clamp(e.x,e.r,W-e.r);if(Math.hypot(player.x-e.x,player.y-e.y)<42&&e.attack<=0&&player.invuln<=0){player.hp-=12;e.attack=.8;player.invuln=.45;player.vx+=Math.sign(player.x-e.x)*230;effects.push({type:'hurt',x:player.x,y:player.y,life:.2});if(player.hp<=0){player.hp=player.maxHp;player.x=W*.2;player.y=80;if(mode==='levels')startLevel(level)}}
+for(const o of objects){if(Math.hypot(o.x-e.x,o.y-e.y)<32&&Math.hypot(o.vx,o.vy)>260&&!o.held){e.hp-=Math.min(35,Math.hypot(o.vx,o.vy)*.06);e.vx+=o.vx*.45;e.vy-=80;if(e.hp<=0)killEnemy(e)}}}
+for(const s of shots){s.x+=s.vx*dt;s.life-=dt;for(const e of enemies){if(e.dead||s.life<=0)continue;if(Math.hypot(s.x-e.x,s.y-e.y)<e.r+7){e.hp-=s.damage;e.vx+=Math.sign(s.vx)*s.knock;e.hit=.12;s.life=0;if(e.hp<=0)killEnemy(e)}}}shots=shots.filter(s=>s.life>0&&s.x>-20&&s.x<W+20);for(const fx of effects)fx.life-=dt;effects=effects.filter(f=>f.life>0);
+if(mode==='levels'){stats.survive+=dt;renderLevelUI();const d=levels[level];if(stats[d[2]]>=d[3])completeLevel()}
+if(mode==='warp'){
+ const gx=W*.90,gy=floorY()-62;
+ if(warp.gateOpen&&Math.hypot(player.x-gx,player.y-gy)<72)completeWarp();
+}
+for(const k in pressed)delete pressed[k];}
+function draw(){ctx.clearRect(0,0,W,H);const A=arena(),g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,A.sky[0]);g.addColorStop(1,A.sky[1]);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);ctx.strokeStyle='#ffffff0b';ctx.lineWidth=1;for(let x=0;x<W;x+=44){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,floorY());ctx.stroke()}for(let y=0;y<floorY();y+=44){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}ctx.fillStyle='#121925';ctx.fillRect(0,floorY(),W,H-floorY());ctx.fillStyle=mode==='combat'||mode==='arsenal'||mode==='levels'?'#ff7b78':'#f3ff7a';ctx.fillRect(0,floorY(),W,2);for(const bp of A.platforms){const p=warpedPlatform(bp);ctx.fillStyle=mode==='warp'?'#1d2940':'#1b2433';ctx.fillRect(p.x,p.y,p.w,p.h);ctx.fillStyle=mode==='warp'?'#7fe8ff55':'#ffffff22';ctx.fillRect(p.x,p.y,p.w,2)}
+if(mode==='warp'){
+ const wd=warpDef(),gx=W*.90,gy=floorY()-62;
+ ctx.save();ctx.translate(gx,gy);
+ ctx.strokeStyle=warp.gateOpen?'#f3ff7a':'#7fe8ff';ctx.lineWidth=4;ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=warp.gateOpen?24:10;
+ ctx.beginPath();ctx.ellipse(0,0,28,54,0,0,Math.PI*2);ctx.stroke();
+ ctx.globalAlpha=.24+.5*warp.stability;ctx.beginPath();ctx.ellipse(0,0,18,43,0,0,Math.PI*2);ctx.fillStyle=warp.gateOpen?'#f3ff7a':'#7fe8ff';ctx.fill();ctx.restore();
+ ctx.fillStyle=warp.gateOpen?'#f3ff7a':'#7fe8ff';ctx.font='800 10px ui-monospace';ctx.textAlign='center';ctx.fillText(warp.gateOpen?'GATE STABLE · ENTER':'GATE UNSTABLE',gx,gy-64);
+}
+if(mode==='warp'){
+ const gx=W*.90, padW=Math.min(170,W*.28),padX=clamp(gx-padW*.5,8,W-padW-8);
+ ctx.fillStyle=warp.gateOpen?'#334727':'#182333';ctx.fillRect(padX,floorY()-8,padW,8);
+ ctx.fillStyle=warp.gateOpen?'#f3ff7a66':'#7fe8ff33';ctx.fillRect(padX,floorY()-10,padW,2);
+}
+if(mode!=='warp')for(const h of A.hazards){ctx.fillStyle='#ff5c5c';for(let x=h.x;x<h.x+h.w;x+=18){ctx.beginPath();ctx.moveTo(x,floorY());ctx.lineTo(x+9,floorY()-18);ctx.lineTo(x+18,floorY());ctx.fill()}}ctx.fillStyle='#ffffff55';ctx.font='800 10px ui-monospace';ctx.textAlign='left';ctx.fillText((mode==='warp'?'WARP ARENA · '+warpDef().name:'ARENA · '+A.name),16,22);
+const n=!player.held&&nearest();if(n){ctx.beginPath();ctx.arc(n.x,n.y,Math.max(n.w,n.h)*.72+8,0,Math.PI*2);ctx.strokeStyle='#f3ff7a88';ctx.setLineDash([6,7]);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#f3ff7a';ctx.font='700 10px ui-monospace';ctx.fillText('E · PICK UP',n.x-31,n.y-45)}
+for(const o of objects){ctx.save();ctx.translate(o.x,o.y);ctx.rotate(o.a);ctx.shadowColor=o.color;ctx.shadowBlur=o.held?28:8;ctx.fillStyle=o.color;ctx.globalAlpha=.94;rr(-o.w/2,-o.h/2,o.w,o.h,7);ctx.shadowBlur=0;ctx.strokeStyle='#0b0e14';ctx.lineWidth=3;ctx.strokeRect(-o.w/2+5,-o.h/2+5,o.w-10,o.h-10);ctx.fillStyle='#0b0e14';ctx.font='800 9px ui-monospace';ctx.textAlign='center';ctx.fillText(o.name.toUpperCase(),0,3);ctx.restore()}
+for(const e of enemies){if(e.dead)continue;ctx.save();ctx.translate(e.x,e.y);ctx.fillStyle=e.hit>0?'#ffffff':'#ff7b78';ctx.beginPath();ctx.arc(0,-14,e.r*.72,0,Math.PI*2);ctx.fill();ctx.fillStyle='#7d3135';rr(-16,0,32,28,8);ctx.fillStyle='#ffffff22';ctx.fillRect(-20,-38,40,4);ctx.fillStyle='#f3ff7a';ctx.fillRect(-20,-38,40*(e.hp/e.maxHp),4);ctx.restore()}
+for(const s of shots){ctx.fillStyle='#7fe8ff';ctx.shadowColor='#7fe8ff';ctx.shadowBlur=15;ctx.beginPath();ctx.arc(s.x,s.y,6,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0}
+for(const fx of effects){ctx.save();ctx.globalAlpha=Math.min(1,fx.life*5);if(fx.type==='arc'){ctx.strokeStyle=fx.weapon==='hammer'?'#f3ff7a':'#eef4ff';ctx.lineWidth=7;ctx.beginPath();ctx.arc(fx.x,fx.y,60,fx.face>0?-1.1:.55,fx.face>0?1.1:2.6);ctx.stroke()}else{ctx.strokeStyle=fx.type==='hurt'?'#ff7b78':'#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(fx.x,fx.y,20+(1-fx.life)*45,0,Math.PI*2);ctx.stroke()}ctx.restore()}
+ctx.save();ctx.translate(player.x,player.y);if(player.invuln>0&&Math.floor(performance.now()/60)%2)ctx.globalAlpha=.4;ctx.fillStyle='#eef4ff';ctx.beginPath();ctx.arc(0,-16,13,0,Math.PI*2);ctx.fill();ctx.fillStyle='#a6b4ca';rr(-13,-3,26,31,9);ctx.fillStyle='#6d7890';ctx.fillRect(-12,24,8,17);ctx.fillRect(4,24,8,17);ctx.strokeStyle=player.weapon==='pulse'?'#7fe8ff':player.weapon==='hammer'?'#f3ff7a':'#ffffff';ctx.lineWidth=5;ctx.beginPath();if(player.weapon==='pulse'){ctx.moveTo(player.face*9,-3);ctx.lineTo(player.face*28,-3)}else{ctx.moveTo(player.face*10,-2);ctx.lineTo(player.face*34,-18)}ctx.stroke();ctx.restore();
+if(player.held){ctx.strokeStyle='#ffffff55';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(player.x+player.face*12,player.y-6);ctx.lineTo(player.held.x,player.held.y);ctx.stroke()}
+const h=player.held;document.querySelector('#held').textContent='HELD: '+(h?h.name.toUpperCase():'NONE');document.querySelector('#weapon').textContent='WEAPON: '+weaponDefs[player.weapon].name;document.querySelector('#hp').textContent='HP: '+Math.max(0,Math.ceil(player.hp));document.querySelector('#xp').textContent='XP: '+player.xp;document.querySelector('#lvl').textContent=mode==='warp'?'WARP: '+(warp.chapter+1)+'/'+warpArenas.length:'LEVEL: '+(level+1)+'/12';document.querySelector('#readout').textContent=`x ${player.x.toFixed(1)} · y ${player.y.toFixed(1)}`;document.querySelector('#physics').textContent=h?`ω ${h.av.toFixed(2)} rad/s · torque ${h.torque.toFixed(2)}`:'ω 0.00 rad/s · torque 0.00';if(mode!=='levels')document.querySelector('#objective').textContent=mode==='physics'?'FREE PLAY':mode==='warp'?(warp.gateOpen?'REACH THE STABLE GATE':'MATCH THE WARP SIGNATURE'):`ENEMIES ${enemies.filter(e=>!e.dead).length}`;
+if(mode==='warp'){
+ const wd=warpDef(),pct=Math.round(warp.stability*100);
+ document.querySelector('#warpRead').textContent='WARP: '+pct+'%';
+ document.querySelector('#warpProgress').style.width=pct+'%';
+ const bendDelta=wd.targetBend-warp.bend,stretchDelta=wd.targetStretch-warp.stretch;
+ document.querySelector('#warpNumbers').textContent=`BEND ${warp.bend.toFixed(0)}° → ${wd.targetBend}° · STRETCH ${warp.stretch.toFixed(2)} → ${wd.targetStretch.toFixed(2)} · STABILITY ${pct}%`;
+ document.querySelector('#warpMission').textContent=warp.gateOpen?'GATE STABLE — run to the glowing portal on the right.':`Adjust ${bendDelta>2?'BEND +':bendDelta<-2?'BEND −':'bend ✓'} and ${stretchDelta>.025?'STRETCH +':stretchDelta<-.025?'STRETCH −':'stretch ✓'}.`;
+}else document.querySelector('#warpRead').textContent='WARP: --';}
+let last=performance.now();function loop(t){const dt=(t-last)/1000;last=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);setMode('physics');
+</script>
+</body></html>
