@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Wind Tendon — WebGPU Regime</title>
+<style>
+  :root{
+    color-scheme:dark;
+    --ink:#eef1f2;
+    --muted:rgba(238,241,242,.58);
+    --line:rgba(255,255,255,.12);
+    --glass:rgba(10,14,17,.42);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07090b;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .noise{
+    position:fixed;inset:0;pointer-events:none;opacity:.12;mix-blend-mode:soft-light;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E");
+  }
+  header{
+    position:fixed;top:0;left:0;right:0;z-index:3;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:22px 28px;border-bottom:1px solid var(--line);
+    background:linear-gradient(to bottom,rgba(6,9,11,.55),rgba(6,9,11,0));
+    backdrop-filter:blur(7px);
+  }
+  .brand{font-size:12px;letter-spacing:.22em;text-transform:uppercase;font-weight:650}
+  .status{font:11px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);display:flex;gap:10px;align-items:center}
+  .dot{width:6px;height:6px;border-radius:50%;background:#dfffd9;box-shadow:0 0 16px #dfffd9}
+  main{
+    position:fixed;inset:0;z-index:2;display:flex;align-items:flex-end;pointer-events:none;
+    padding:0 28px 34px;
+  }
+  .hero{max-width:760px}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--muted);margin-bottom:13px}
+  h1{margin:0;font-size:clamp(48px,9vw,124px);letter-spacing:-.065em;line-height:.82;font-weight:500}
+  .sub{margin-top:20px;max-width:560px;font-size:14px;line-height:1.6;color:var(--muted)}
+  .legend{
+    position:fixed;right:28px;bottom:34px;z-index:3;display:grid;gap:8px;
+    font:10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.42)
+  }
+  .legend span{display:flex;gap:9px;align-items:center;justify-content:flex-end}
+  .bar{width:38px;height:1px;background:rgba(255,255,255,.3)}
+  .fallback{
+    position:fixed;inset:0;display:none;place-items:center;padding:30px;text-align:center;
+    background:#080b0d;z-index:10;font:14px/1.5 ui-monospace,monospace;color:#c7cdcf
+  }
+  @media (max-width:700px){
+    header{padding:18px}
+    main{padding:0 18px 24px}
+    .legend{display:none}
+    h1{font-size:clamp(54px,18vw,92px)}
+    .sub{max-width:88vw;font-size:13px}
+  }
+</style>
+</head>
+<body>
+<canvas id="gpu"></canvas>
+<div class="noise"></div>
+<header>
+  <div class="brand">Wind Tendon</div>
+  <div class="status"><span class="dot"></span><span id="gpuStatus">WEBGPU / COUPLED FIELD</span></div>
+</header>
+<main>
+  <section class="hero">
+    <div class="eyebrow">Elastic aerodynamics / double-wave regime</div>
+    <h1>La wind.<br>La tendon.</h1>
+    <div class="sub">
+      Two waves enter the same spine and disagree continuously. The form bends, twists and recovers:
+      not cloth, not a flag — a tensioned aerodynamic body.
+    </div>
+  </section>
+</main>
+<div class="legend">
+  <span>torsion <i class="bar"></i></span>
+  <span>phase coupling <i class="bar"></i></span>
+  <span>elastic return <i class="bar"></i></span>
+</div>
+<div class="fallback" id="fallback">
+  This page needs a browser with WebGPU enabled.
+</div>
+
+<script type="module">
+const canvas = document.querySelector('#gpu');
+const fallback = document.querySelector('#fallback');
+const gpuStatus = document.querySelector('#gpuStatus');
+
+if (!navigator.gpu) {
+  fallback.style.display = 'grid';
+  throw new Error('WebGPU unavailable');
+}
+
+const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+if (!adapter) {
+  fallback.style.display = 'grid';
+  throw new Error('No WebGPU adapter');
+}
+
+const device = await adapter.requestDevice();
+const context = canvas.getContext('webgpu');
+const format = navigator.gpu.getPreferredCanvasFormat();
+
+let dpr = Math.min(devicePixelRatio || 1, 2);
+function resize() {
+  dpr = Math.min(devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.floor(innerWidth * dpr));
+  const h = Math.max(1, Math.floor(innerHeight * dpr));
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+    context.configure({ device, format, alphaMode:'opaque' });
+  }
+}
+resize();
+addEventListener('resize', resize);
+
+const shader = /* wgsl */`
+struct Globals {
+  resolution : vec2f,
+  time : f32,
+  pointerX : f32,
+  pointerY : f32,
+  pulse : f32,
+  _pad0 : vec2f,
+}
+@group(0) @binding(0) var<uniform> G : Globals;
+
+fn rot2(a:f32)->mat2x2f{
+  let c = cos(a);
+  let s = sin(a);
+  return mat2x2f(c,-s,s,c);
+}
+
+fn hash21(p:vec2f)->f32{
+  return fract(sin(dot(p,vec2f(127.1,311.7)))*43758.5453);
+}
+
+fn palette(q:f32)->vec3f{
+  let cold = vec3f(0.32,0.72,0.78);
+  let pale = vec3f(0.78,0.96,0.86);
+  let ember = vec3f(0.84,0.48,0.24);
+  return mix(mix(cold,pale,smoothstep(-.45,.15,q)),ember,smoothstep(.22,.8,q));
+}
+
+// distance field for an elastic "tendon":
+// a thick energetic center line with torsional satellite strands.
+fn tendonField(p0:vec2f, t:f32, phase:f32)->vec4f{
+  var p = p0;
+  let x = p.x;
+
+  // Wave A: long wind pressure.
+  let wa = sin(x*2.7 - t*1.18 + phase) * 0.22;
+  let wa2 = sin(x*5.1 + t*.41 + phase*.5) * 0.055;
+
+  // Wave B: contra-propagating elastic wave.
+  let wb = sin(x*4.25 + t*1.62 - phase*1.2) * 0.105;
+  let wb2 = cos(x*7.4 - t*.72) * 0.032;
+
+  // Interaction: nonlinear beat pocket — makes it a tendon rather than a flag.
+  let coupling = wa * wb * 1.45;
+  let center = wa + wa2 + wb + wb2 + coupling;
+
+  // local tangent estimate, used to imitate torsion and line compression
+  let slope =
+      cos(x*2.7 - t*1.18 + phase)*.594
+    + cos(x*5.1 + t*.41 + phase*.5)*.2805
+    + cos(x*4.25 + t*1.62 - phase*1.2)*.446;
+
+  let twist = sin(x*3.2 - t*1.9 + phase*2.0 + wb*5.0);
+  let breathe = .055 + .012*sin(x*2.1+t*.9) + .012*coupling;
+
+  let d = abs(p.y-center);
+  let core = exp(-d*d/(breathe*breathe));
+
+  // twin internal fibres rotate around the spine; these are NOT cloth folds.
+  let sideOffset = .055 + .022*twist;
+  let fibre1 = exp(-pow(abs(p.y-center-sideOffset),2.0)/.00042);
+  let fibre2 = exp(-pow(abs(p.y-center+sideOffset),2.0)/.00042);
+
+  // thin "wind pressure" halo
+  let halo = exp(-d*d/.024);
+
+  return vec4f(core, fibre1+fibre2, halo, slope);
+}
+
+@vertex
+fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4f{
+  let p = array<vec2f,3>(
+    vec2f(-1.0,-3.0),
+    vec2f( 3.0, 1.0),
+    vec2f(-1.0, 1.0)
+  );
+  return vec4f(p[i],0.0,1.0);
+}
+
+@fragment
+fn fs(@builtin(position) frag:vec4f)->@location(0) vec4f{
+  let uv = frag.xy / G.resolution;
+  let asp = G.resolution.x / G.resolution.y;
+  var p = (uv-.5)*vec2f(asp,1.0);
+  p *= 2.25;
+
+  // pointer bends the flow's viewing chamber, not the geometry directly.
+  let m = vec2f(G.pointerX,G.pointerY);
+  let bend = (m.x-.5)*.15;
+  p = rot2(bend)*p;
+  p.y += (m.y-.5)*.08;
+
+  let t = G.time;
+
+  // Three offset tendon strata establish depth; two waves remain the primary drivers.
+  let a = tendonField(p + vec2f(.0,.05),t,0.0);
+  let b = tendonField(p*vec2f(1.0,1.06)+vec2f(.05,-.11),t*.94,2.35);
+  let c = tendonField(p*vec2f(1.0,.93)+vec2f(-.08,.16),t*1.05,4.4);
+
+  let energy = max(a.x,max(b.x*.72,c.x*.46));
+  let fibres = a.y + b.y*.48 + c.y*.25;
+  let halo = a.z*.82 + b.z*.34 + c.z*.18;
+
+  // flow streaks crossing the field
+  let flowCoord = p.x*5.0 + p.y*1.7 - t*1.2;
+  let streak = pow(.5+.5*sin(flowCoord + sin(p.y*7.0+t)*.7),18.0);
+  let envelope = exp(-abs(p.y)*1.45);
+  let flow = streak*envelope*.18;
+
+  // cross-wave beat emphasis
+  let beat = .5+.5*sin(p.x*2.7-t*1.18) * sin(p.x*4.25+t*1.62);
+  let tendonColor = palette(beat + a.w*.12);
+
+  var col = vec3f(.018,.026,.031);
+  col += tendonColor * energy * 1.28;
+  col += vec3f(.62,.9,.84) * fibres * .28;
+  col += vec3f(.13,.34,.38) * halo * .24;
+  col += vec3f(.22,.42,.44) * flow;
+
+  // broad atmospheric pressure lobes
+  let pressure = exp(-length(p-vec2f(.22*sin(t*.17),.08))*.62);
+  col += vec3f(.035,.065,.066)*pressure;
+
+  // slight vignette + cinematic horizon
+  let vign = smoothstep(1.45,.2,length((uv-.5)*vec2f(1.0,.82)));
+  col *= .62 + .62*vign;
+  col += vec3f(.015,.02,.022) * smoothstep(.8,.35,uv.y);
+
+  // cheap film grain generated on GPU
+  let grain = hash21(frag.xy+floor(t*24.0))-.5;
+  col += grain*.018;
+
+  // pulse on pointer down
+  col += tendonColor * G.pulse * halo * .18;
+
+  // compress highlights
+  col = col/(1.0+col);
+  col = pow(col,vec3f(.86));
+
+  return vec4f(col,1.0);
+}
+`;
+
+const module = device.createShaderModule({ code: shader });
+const pipeline = device.createRenderPipeline({
+  layout:'auto',
+  vertex:{module,entryPoint:'vs'},
+  fragment:{module,entryPoint:'fs',targets:[{format}]},
+  primitive:{topology:'triangle-list'}
+});
+
+const uniformBuffer = device.createBuffer({
+  size: 32,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+});
+const bindGroup = device.createBindGroup({
+  layout:pipeline.getBindGroupLayout(0),
+  entries:[{binding:0,resource:{buffer:uniformBuffer}}]
+});
+
+let mouseX=.5, mouseY=.5, tx=.5, ty=.5, pulse=0;
+addEventListener('pointermove', e=>{
+  tx=e.clientX/innerWidth;
+  ty=e.clientY/innerHeight;
+}, {passive:true});
+addEventListener('pointerdown',()=>pulse=1);
+
+const start=performance.now();
+function frame(now){
+  resize();
+  mouseX += (tx-mouseX)*.045;
+  mouseY += (ty-mouseY)*.045;
+  pulse *= .94;
+
+  const data = new Float32Array([
+    canvas.width, canvas.height,
+    (now-start)/1000,
+    mouseX, mouseY, pulse,
+    0,0
+  ]);
+  device.queue.writeBuffer(uniformBuffer,0,data);
+
+  const encoder=device.createCommandEncoder();
+  const pass=encoder.beginRenderPass({
+    colorAttachments:[{
+      view:context.getCurrentTexture().createView(),
+      clearValue:{r:.005,g:.008,b:.01,a:1},
+      loadOp:'clear',
+      storeOp:'store'
+    }]
+  });
+  pass.setPipeline(pipeline);
+  pass.setBindGroup(0,bindGroup);
+  pass.draw(3);
+  pass.end();
+  device.queue.submit([encoder.finish()]);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+device.lost.then(info=>{
+  gpuStatus.textContent='GPU DEVICE LOST';
+  console.error(info);
+});
+</script>
+</body>
+</html>
