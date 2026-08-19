@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Wind Tendon — Mobile Wave Puzzle</title>
+<style>
+:root{color-scheme:dark;--ink:#eef4f2;--muted:rgba(238,244,242,.58);--line:rgba(255,255,255,.14);--panel:rgba(6,10,12,.72)}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05080a;color:var(--ink);font-family:Inter,system-ui,sans-serif;touch-action:none;overscroll-behavior:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+header{position:fixed;z-index:8;top:0;left:0;right:0;padding:15px 16px;display:flex;justify-content:space-between;gap:12px;background:linear-gradient(#05080ae6,transparent);pointer-events:none}
+.brand{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+.status{font:10px ui-monospace,monospace;color:var(--muted);text-align:right}
+.hud{position:fixed;z-index:8;left:12px;right:12px;top:54px;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+.chip{padding:9px 11px;border:1px solid var(--line);border-radius:15px;background:var(--panel);backdrop-filter:blur(12px);font-size:11px;color:var(--muted);max-width:72vw}
+.chip b{color:var(--ink)}
+.proclaim{position:fixed;z-index:10;left:50%;top:18%;width:min(88vw,560px);transform:translate(-50%,-8px);opacity:0;transition:.18s;text-align:center;pointer-events:none}
+.proclaim.show{opacity:1;transform:translate(-50%,0)}
+.proclaim span{display:inline-block;padding:11px 15px;border:1px solid var(--line);border-radius:999px;background:rgba(6,10,12,.82);backdrop-filter:blur(16px);font-size:12px}
+.controls{position:fixed;z-index:12;left:0;right:0;bottom:0;padding:12px 10px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(5,8,10,.78) 28%,rgba(5,8,10,.98))}
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;max-width:760px;margin:auto}
+.mode{appearance:none;border:1px solid var(--line);border-radius:15px;min-height:58px;padding:9px 4px;background:rgba(12,17,20,.78);color:var(--muted);font:9px ui-monospace,monospace;text-transform:uppercase;touch-action:manipulation}
+.mode b{display:block;color:var(--ink);font:600 11px Inter,system-ui;margin-bottom:3px}
+.mode.active{background:rgba(222,241,234,.15);border-color:rgba(222,241,234,.5);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+.bottom{display:flex;align-items:center;gap:8px;max-width:760px;margin:9px auto 0}
+.meter{flex:1;height:9px;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:rgba(255,255,255,.04)}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6e9d9e,#d7e6b7);transition:width .18s}
+.reset{appearance:none;border:1px solid var(--line);border-radius:999px;background:rgba(12,17,20,.78);color:var(--muted);padding:8px 11px;font:9px ui-monospace,monospace;text-transform:uppercase}
+.help{position:fixed;z-index:7;left:50%;bottom:112px;transform:translateX(-50%);font:10px ui-monospace,monospace;color:rgba(255,255,255,.42);pointer-events:none;white-space:nowrap}
+@media(max-width:420px){.mode{min-height:54px;font-size:8px}.mode b{font-size:10px}.help{bottom:108px}}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<header>
+  <div class="brand">Wind Tendon / Wave Puzzle</div>
+  <div class="status" id="status">INITIALIZING</div>
+</header>
+
+<div class="hud">
+  <div class="chip" id="goal"><b>Goal:</b> inject a first wave.</div>
+  <div class="chip"><b id="score">0</b> / 4</div>
+</div>
+
+<div class="proclaim" id="proclaim"><span id="proclaimText">The field is waiting.</span></div>
+<div class="help">tap or drag across the field</div>
+
+<div class="controls">
+  <div class="modes">
+    <button class="mode active" data-mode="0"><b>Blow</b>forward</button>
+    <button class="mode" data-mode="1"><b>Crosswind</b>side</button>
+    <button class="mode" data-mode="2"><b>Reverse</b>oppose</button>
+    <button class="mode" data-mode="3"><b>Sand Dust</b>reveal</button>
+  </div>
+  <div class="bottom">
+    <div class="meter"><i id="fill"></i></div>
+    <button class="reset" id="reset">Reset</button>
+  </div>
+</div>
+
+<script type="module">
+const canvas = document.getElementById('view');
+const statusEl = document.getElementById('status');
+const goalEl = document.getElementById('goal');
+const scoreEl = document.getElementById('score');
+const fillEl = document.getElementById('fill');
+const proclaimEl = document.getElementById('proclaim');
+const proclaimText = document.getElementById('proclaimText');
+const buttons = [...document.querySelectorAll('.mode')];
+const resetBtn = document.getElementById('reset');
+
+let mode=0, score=0;
+let pointer={x:.5,y:.5};
+let direction={x:1,y:0};
+let pulse=0, age=99;
+let pointerDown=false, lastX=.5, lastY=.5, lastEmit=0;
+
+const sayings=[
+  ["Forward wave proclaimed: a crest enters the active field.","The tendon receives a new traveling pressure."],
+  ["Crosswind proclaimed: a second direction now cuts through the first.","A lateral wave establishes a new axis of motion."],
+  ["Reverse wave proclaimed: crest now seeks trough.","Opposition enters the field and begins cancellation."],
+  ["Sand dust proclaimed: hidden currents become visible.","Dust reveals where the field gathers and releases pressure."]
+];
+
+function announce(text){
+  proclaimText.textContent=text;
+  proclaimEl.classList.add('show');
+  clearTimeout(announce.timer);
+  announce.timer=setTimeout(()=>proclaimEl.classList.remove('show'),1450);
+}
+function updateGoal(){
+  scoreEl.textContent=score;
+  fillEl.style.width=(score*25)+'%';
+  const goals=[
+    "<b>Goal:</b> inject a first wave.",
+    "<b>Goal:</b> redirect it with crosswind.",
+    "<b>Goal:</b> answer it with a reverse wave.",
+    "<b>Goal:</b> reveal the result with sand dust.",
+    "<b>Complete:</b> a stable interaction has been exposed."
+  ];
+  goalEl.innerHTML=goals[score];
+}
+function chooseMode(m){
+  mode=m;
+  buttons.forEach((b,i)=>b.classList.toggle('active',i===m));
+  announce(["Blow selected.","Crosswind selected.","Reverse selected.","Sand Dust selected."][m]);
+}
+buttons.forEach((b,i)=>{
+  b.addEventListener('click',e=>{e.preventDefault();chooseMode(i)});
+});
+resetBtn.addEventListener('click',e=>{
+  e.preventDefault();
+  score=0; age=99; pulse=0; updateGoal();
+  announce("The field returns to its original two-wave state.");
+});
+
+function emit(x,y,dx,dy){
+  pointer.x=x; pointer.y=y;
+  const len=Math.hypot(dx,dy);
+  if(len>0.005){direction.x=dx/len;direction.y=dy/len}
+  age=0; pulse=1;
+  announce(sayings[mode][Math.random()<.5?0:1]);
+  if(mode===0 && score===0) score=1;
+  else if(mode===1 && score===1) score=2;
+  else if(mode===2 && score===2) score=3;
+  else if(mode===3 && score===3){
+    score=4;
+    setTimeout(()=>announce("Puzzle complete: disturbance, opposition and revelation now coexist."),420);
+  }
+  updateGoal();
+}
+
+function pos(e){ return {x:e.clientX/innerWidth, y:e.clientY/innerHeight}; }
+canvas.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  pointerDown=true;
+  canvas.setPointerCapture?.(e.pointerId);
+  const p=pos(e); lastX=p.x; lastY=p.y; lastEmit=performance.now();
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!pointerDown)return;
+  e.preventDefault();
+  const p=pos(e), now=performance.now();
+  if(now-lastEmit>90){
+    emit(p.x,p.y,p.x-lastX,p.y-lastY);
+    lastX=p.x;lastY=p.y;lastEmit=now;
+  }
+});
+canvas.addEventListener('pointerup',e=>{
+  e.preventDefault();
+  const p=pos(e);
+  emit(p.x,p.y,p.x-lastX,p.y-lastY);
+  pointerDown=false;
+});
+canvas.addEventListener('pointercancel',()=>pointerDown=false);
+
+function fit(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  const w=Math.max(2,Math.floor(innerWidth*dpr));
+  const h=Math.max(2,Math.floor(innerHeight*dpr));
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;return true}
+  return false;
+}
+
+/* ---------- WebGPU renderer ---------- */
+async function startWebGPU(){
+  if(!navigator.gpu) throw new Error('WebGPU unavailable');
+  const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
+  if(!adapter) throw new Error('No WebGPU adapter');
+  const device=await adapter.requestDevice();
+  const ctx=canvas.getContext('webgpu');
+  const format=navigator.gpu.getPreferredCanvasFormat();
+
+  const shader=`
+struct U {
+  a: vec4f, // width, height, time, mode
+  b: vec4f, // pointer x,y, pulse, age
+  c: vec4f  // dir x,y, score, unused
+};
+@group(0) @binding(0) var<uniform> u: U;
+
+fn hash21(p:vec2f)->f32{
+  return fract(sin(dot(p,vec2f(127.1,311.7)))*43758.5453);
+}
+fn pal(v:f32)->vec3f{
+  let cold=vec3f(.16,.50,.58);
+  let pale=vec3f(.70,.94,.82);
+  let warm=vec3f(.86,.51,.24);
+  return mix(mix(cold,pale,smoothstep(-.4,.2,v)),warm,smoothstep(.22,.82,v));
+}
+fn tendon(p:vec2f,t:f32)->vec4f{
+  let x=p.x;
+  let w1=sin(x*2.7-t*1.18)*.22;
+  let w2=sin(x*4.2+t*1.63)*.108;
+  let y=w1+w2+sin(x*5.1+t*.41)*.05+w1*w2*1.5;
+  let d=abs(p.y-y);
+  let core=exp(-d*d/.0033);
+  let fibre=exp(-pow(abs(d-.055),2.0)/.00055);
+  let halo=exp(-d*d/.028);
+  let slope=cos(x*2.7-t*1.18)*.59+cos(x*4.2+t*1.63)*.44;
+  return vec4f(core,fibre,halo,slope);
+}
+fn interaction(p:vec2f)->vec4f{
+  let res=u.a.xy;
+  let aspect=res.x/res.y;
+  let pp=(u.b.xy-vec2f(.5))*vec2f(aspect,1.0)*2.25;
+  let q=p-pp;
+  let age=u.b.w;
+  let fade=exp(-age*.72);
+  var dir=u.c.xy;
+  if(length(dir)<.05){dir=vec2f(1.0,0.0);}
+  dir=normalize(dir);
+  var wave=0.0;
+  var dust=0.0;
+  var ring=0.0;
+  let m=u.a.w;
+  if(m<.5){
+    let s=dot(q,dir);
+    let n=dot(q,vec2f(-dir.y,dir.x));
+    wave=sin(s*9.0-age*7.0)*exp(-abs(n)*4.5)*fade;
+  }else if(m<1.5){
+    dir=normalize(vec2f(-dir.y,dir.x));
+    let s=dot(q,dir);
+    let n=dot(q,vec2f(-dir.y,dir.x));
+    wave=sin(s*11.0-age*8.0+1.57)*exp(-abs(n)*5.0)*fade;
+  }else if(m<2.5){
+    dir=-dir;
+    let s=dot(q,dir);
+    let n=dot(q,vec2f(-dir.y,dir.x));
+    wave=sin(s*8.0-age*6.2+3.14)*exp(-abs(n)*4.0)*fade;
+  }else{
+    let r=length(q);
+    ring=sin(r*31.0-age*8.0)*exp(-r*2.6)*fade;
+    dust=(.5+.5*sin((q.x+q.y)*56.0+hash21(floor(q*80.0))*6.28))*exp(-r*1.5)*fade;
+  }
+  return vec4f(wave,dust,ring,fade);
+}
+@vertex fn vs(@builtin(vertex_index)i:u32)->@builtin(position)vec4f{
+  let p=array<vec2f,3>(vec2f(-1.0,-3.0),vec2f(3.0,1.0),vec2f(-1.0,1.0));
+  return vec4f(p[i],0.0,1.0);
+}
+@fragment fn fs(@builtin(position)frag:vec4f)->@location(0)vec4f{
+  let res=u.a.xy;
+  let uv=frag.xy/res;
+  let aspect=res.x/res.y;
+  let p=(uv-.5)*vec2f(aspect,1.0)*2.25;
+  let z=interaction(p);
+  let t=tendon(p+vec2f(0.0,-z.x*.085),u.a.z);
+  let beat=.5+.5*sin(p.x*2.7-u.a.z*1.18)*sin(p.x*4.2+u.a.z*1.63);
+  var col=vec3f(.017,.024,.030);
+  col+=pal(beat+t.w*.12)*t.x*1.25;
+  col+=vec3f(.54,.86,.81)*t.y*.28;
+  col+=vec3f(.08,.23,.27)*t.z*.25;
+  col+=vec3f(.25,.67,.76)*abs(z.x)*.25;
+  col+=vec3f(.85,.53,.25)*max(z.x,0.0)*.20;
+
+  if(u.a.w>2.5){
+    let flow=sin(p.x*5.0+p.y*8.0-u.a.z*2.0+z.z);
+    let grains=smoothstep(.84,1.0,fract(z.y*.7+flow*.42+hash21(floor(frag.xy/2.0))));
+    col+=vec3f(.78,.66,.40)*grains*.48*z.w;
+  }
+
+  let pp=(u.b.xy-vec2f(.5))*vec2f(aspect,1.0)*2.25;
+  col+=pal(z.x)*exp(-length(p-pp)*23.0)*(.2+.3*u.b.z);
+
+  let vig=smoothstep(1.45,.2,length((uv-.5)*vec2f(1.0,.82)));
+  col*=.62+.62*vig;
+  col+=(hash21(frag.xy+floor(u.a.z*24.0))-.5)*.014;
+  col=col/(1.0+col);
+  col=pow(col,vec3f(.86));
+  return vec4f(col,1.0);
+}`;
+
+  const module=device.createShaderModule({code:shader});
+  const info=await module.getCompilationInfo();
+  const errors=info.messages.filter(m=>m.type==='error');
+  if(errors.length) throw new Error(errors.map(e=>e.message).join('\n'));
+
+  const pipeline=device.createRenderPipeline({
+    layout:'auto',
+    vertex:{module,entryPoint:'vs'},
+    fragment:{module,entryPoint:'fs',targets:[{format}]},
+    primitive:{topology:'triangle-list'}
+  });
+
+  const ub=device.createBuffer({size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  const bg=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:ub}}]});
+
+  fit();
+  ctx.configure({device,format,alphaMode:'opaque'});
+  const t0=performance.now();
+  statusEl.textContent='WEBGPU · ACTIVE';
+
+  function frame(now){
+    const resized=fit();
+    if(resized) ctx.configure({device,format,alphaMode:'opaque'});
+    pulse*=.92;
+    age+=1/60;
+    const data=new Float32Array([
+      canvas.width,canvas.height,(now-t0)/1000,mode,
+      pointer.x,pointer.y,pulse,age,
+      direction.x,direction.y,score,0
+    ]);
+    device.queue.writeBuffer(ub,0,data);
+    const enc=device.createCommandEncoder();
+    const pass=enc.beginRenderPass({colorAttachments:[{
+      view:ctx.getCurrentTexture().createView(),
+      clearValue:{r:.005,g:.008,b:.01,a:1},
+      loadOp:'clear',storeOp:'store'
+    }]});
+    pass.setPipeline(pipeline);pass.setBindGroup(0,bg);pass.draw(3);pass.end();
+    device.queue.submit([enc.finish()]);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- Canvas fallback ---------- */
+function startCanvasFallback(reason){
+  console.warn('WebGPU fallback:',reason);
+  const ctx=canvas.getContext('2d');
+  statusEl.textContent='CANVAS FALLBACK · ACTIVE';
+  announce('WebGPU was unavailable here, so the puzzle switched to a compatible renderer.');
+  const t0=performance.now();
+
+  function draw(now){
+    fit();
+    const w=canvas.width,h=canvas.height,dpr=Math.min(devicePixelRatio||1,2),t=(now-t0)/1000;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle='#05080a';ctx.fillRect(0,0,w,h);
+
+    const ampScale=h*.22;
+    const mid=h*.43;
+    const step=Math.max(3,Math.floor(w/220));
+
+    for(let layer=0;layer<3;layer++){
+      ctx.beginPath();
+      for(let x=0;x<=w;x+=step){
+        const nx=(x/w-.5)*4.2;
+        const y0=Math.sin(nx*2.7-t*1.18)*.22+Math.sin(nx*4.2+t*1.63)*.108;
+        let extra=0;
+        const px=pointer.x*w, py=pointer.y*h;
+        const distx=(x-px)/w;
+        const fade=Math.exp(-age*.72);
+        if(mode===0) extra=Math.sin(distx*30-age*7)*Math.exp(-Math.abs(distx)*4)*fade*.12;
+        else if(mode===1) extra=Math.sin(distx*36-age*8+1.57)*Math.exp(-Math.abs(distx)*5)*fade*.10;
+        else if(mode===2) extra=Math.sin(distx*28-age*6.2+3.14)*Math.exp(-Math.abs(distx)*4)*fade*.11;
+        const y=mid+(y0+extra+layer*.035)*ampScale;
+        if(x===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+      }
+      ctx.lineWidth=(layer===0?7:2)*dpr;
+      ctx.strokeStyle=layer===0?'rgba(128,220,211,.75)':layer===1?'rgba(220,244,222,.45)':'rgba(219,139,78,.28)';
+      ctx.stroke();
+    }
+
+    if(mode===3 && age<6){
+      const px=pointer.x*w,py=pointer.y*h;
+      for(let i=0;i<140;i++){
+        const a=i*2.399, r=((i%37)/37)*Math.min(w,h)*.24*Math.exp(-age*.12);
+        const x=px+Math.cos(a+t)*r, y=py+Math.sin(a*.7-t*.6)*r*.6;
+        ctx.fillStyle='rgba(215,183,108,'+(0.1+0.35*Math.exp(-age*.5))+')';
+        ctx.fillRect(x,y,1.5*dpr,1.5*dpr);
+      }
+    }
+
+    if(age<3){
+      const g=ctx.createRadialGradient(pointer.x*w,pointer.y*h,0,pointer.x*w,pointer.y*h,80*dpr);
+      g.addColorStop(0,'rgba(190,245,225,.45)');
+      g.addColorStop(1,'rgba(190,245,225,0)');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(pointer.x*w,pointer.y*h,80*dpr,0,Math.PI*2);ctx.fill();
+    }
+
+    pulse*=.92; age+=1/60;
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}
+
+updateGoal();
+startWebGPU().catch(err=>startCanvasFallback(err));
+</script>
+</body>
+</html>
