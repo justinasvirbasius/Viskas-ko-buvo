@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Scalar Moat — Infinity Fold</title>
+<style>
+  :root{
+    --bg:#050608;
+    --panel:rgba(12,14,18,.72);
+    --line:rgba(255,255,255,.10);
+    --text:#eef0f4;
+    --muted:#9ca3af;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial}
+  body{overflow:hidden}
+  #stage{position:fixed;inset:0;width:100%;height:100%;display:block;background:#050608}
+  .grain{position:fixed;inset:0;pointer-events:none;opacity:.12;mix-blend-mode:screen;
+    background-image:radial-gradient(rgba(255,255,255,.18) .5px,transparent .6px);
+    background-size:5px 5px}
+  .topbar{position:fixed;left:0;right:0;top:0;padding:max(18px,env(safe-area-inset-top)) 22px 12px;display:flex;justify-content:space-between;align-items:flex-start;gap:18px;pointer-events:none}
+  .brand{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#d6dae1}
+  .mode{font-size:12px;color:var(--muted);text-align:right}
+  .hero{position:fixed;left:clamp(22px,6vw,88px);top:50%;transform:translateY(-50%);width:min(560px,78vw);pointer-events:none}
+  .kicker{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#9ba1ab;margin-bottom:14px}
+  h1{font-size:clamp(42px,8vw,112px);line-height:.88;margin:0 0 20px;font-weight:650;letter-spacing:-.055em}
+  h1 span{display:block;color:#777d87}
+  .copy{max-width:520px;font-size:clamp(14px,1.4vw,18px);line-height:1.55;color:#b4bac4}
+  .scalar-readout{margin-top:26px;display:flex;align-items:baseline;gap:14px}
+  #scalarText{font-size:clamp(30px,4vw,58px);font-variant-numeric:tabular-nums;letter-spacing:-.045em}
+  #phaseText{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8b929c}
+  .controls{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(720px,calc(100vw - 28px));background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(18px);border-radius:18px;padding:14px}
+  .row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center}
+  .row+.row{margin-top:10px}
+  label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#9ba1ab}
+  input[type=range]{width:100%;accent-color:#e6e8ec}
+  button{border:1px solid var(--line);background:rgba(255,255,255,.04);color:#e9ebef;border-radius:12px;padding:10px 14px;font:inherit;cursor:pointer}
+  button:active{transform:scale(.98)}
+  .value{font-variant-numeric:tabular-nums;color:#cbd0d7;font-size:12px;min-width:42px;text-align:right}
+  .hint{position:fixed;right:22px;bottom:112px;color:#747b86;font-size:11px;letter-spacing:.07em;text-transform:uppercase;writing-mode:vertical-rl;pointer-events:none}
+  @media (max-width:700px){
+    .topbar{padding-left:16px;padding-right:16px}
+    .hero{left:18px;top:42%;width:calc(100vw - 36px)}
+    .copy{max-width:86vw}
+    .controls{bottom:max(10px,env(safe-area-inset-bottom));padding:11px;border-radius:16px}
+    .hint{display:none}
+    .row{grid-template-columns:72px 1fr 42px;gap:8px}
+    button{padding:9px 12px}
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div class="grain"></div>
+
+<div class="topbar">
+  <div class="brand">Scalar / Moat / Convolution</div>
+  <div class="mode">Infinity-fold regime<br>dark return enabled</div>
+</div>
+
+<main class="hero">
+  <div class="kicker">A scalar does not stop at a wall</div>
+  <h1>Reach <span>∞, then fall dark.</span></h1>
+  <div class="copy">
+    The scalar expands through a visible convolution field. Near the maximum, linear magnitude is compressed into an infinity band; crossing it folds the field back into the moat and returns the system below zero into a dark basin. A second outer moat now emerges only near maximum scalar, forming a harder infinity shell.
+  </div>
+  <div class="scalar-readout">
+    <div id="scalarText">1.00</div>
+    <div id="phaseText">ascending</div>
+  </div>
+</main>
+
+<div class="hint">drag the field · wheel to perturb</div>
+
+<section class="controls">
+  <div class="row">
+    <label>Scalar</label>
+    <input id="scalar" type="range" min="-1" max="1" value="0" step="0.001" />
+    <div class="value" id="scalarVal">0.00</div>
+  </div>
+  <div class="row">
+    <label>Convolution</label>
+    <input id="conv" type="range" min="0" max="1" value="0.62" step="0.001" />
+    <div class="value" id="convVal">0.62</div>
+  </div>
+  <div class="row">
+    <label>Motion</label>
+    <input id="motion" type="range" min="0" max="1" value="0.66" step="0.001" />
+    <button id="auto">Pause</button>
+  </div>
+</section>
+
+<script>
+(() => {
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d', { alpha:false });
+  const scalarInput = document.getElementById('scalar');
+  const convInput = document.getElementById('conv');
+  const motionInput = document.getElementById('motion');
+  const autoBtn = document.getElementById('auto');
+  const scalarText = document.getElementById('scalarText');
+  const phaseText = document.getElementById('phaseText');
+  const scalarVal = document.getElementById('scalarVal');
+  const convVal = document.getElementById('convVal');
+
+  let dpr=1,w=0,h=0,t=0,auto=true;
+  let pointer={x:.76,y:.47,down:false,energy:0};
+  let scalar=0;
+  let direction=1;
+
+  const resize=()=>{
+    dpr=Math.min(2,devicePixelRatio||1);
+    w=innerWidth; h=innerHeight;
+    canvas.width=Math.floor(w*dpr); canvas.height=Math.floor(h*dpr);
+    canvas.style.width=w+'px'; canvas.style.height=h+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  };
+  addEventListener('resize',resize); resize();
+
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const smooth=(a,b,x)=>{x=clamp((x-a)/(b-a),0,1);return x*x*(3-2*x)};
+  const foldInfinity = s => {
+    // -1..1 -> dark negative .. finite .. compressed infinity band
+    const a = Math.abs(s);
+    if (a < .82) return {mag: Math.sign(s)*Math.pow(a/.82,1.45)*18, inf:false};
+    const q = (a-.82)/.18;
+    return {mag: Math.sign(s)*(18 + 982*(1-Math.exp(-7*q))), inf:q>.76};
+  };
+
+  function perturb(x,y,amount=.12){
+    pointer.x=x/w; pointer.y=y/h; pointer.energy=Math.min(1,pointer.energy+amount);
+  }
+  canvas.addEventListener('pointerdown',e=>{pointer.down=true;perturb(e.clientX,e.clientY,.4);canvas.setPointerCapture(e.pointerId)});
+  canvas.addEventListener('pointermove',e=>{if(pointer.down)perturb(e.clientX,e.clientY,.16)});
+  canvas.addEventListener('pointerup',()=>pointer.down=false);
+  canvas.addEventListener('wheel',e=>{perturb(e.clientX,e.clientY,.25); scalar=clamp(scalar-e.deltaY*.0005,-1,1); scalarInput.value=scalar;},{passive:true});
+
+  scalarInput.addEventListener('input',()=>{scalar=+scalarInput.value; auto=false; autoBtn.textContent='Resume'});
+  convInput.addEventListener('input',()=>convVal.textContent=(+convInput.value).toFixed(2));
+  autoBtn.addEventListener('click',()=>{auto=!auto;autoBtn.textContent=auto?'Pause':'Resume'});
+
+  function draw(now){
+    const dt=Math.min(.034,(now-t)/1000||.016); t=now;
+    const speed=.10 + .38*(+motionInput.value);
+    if(auto){
+      scalar += direction*dt*speed;
+      if(scalar>=1){scalar=1;direction=-1}
+      if(scalar<=-1){scalar=-1;direction=1}
+      scalarInput.value=scalar;
+    }
+    pointer.energy*=Math.pow(.12,dt);
+    const conv=+convInput.value;
+    scalarVal.textContent=scalar.toFixed(2);
+    convVal.textContent=conv.toFixed(2);
+
+    const fold=foldInfinity(scalar);
+    if(fold.inf) scalarText.textContent = scalar>0 ? '∞' : '−∞';
+    else scalarText.textContent = Math.abs(fold.mag)<10 ? fold.mag.toFixed(2) : fold.mag.toFixed(0);
+
+    let phase = scalar>.94 ? 'maximum moat'
+             : scalar>.82 ? 'infinity compression'
+             : scalar<-.58 ? 'dark return'
+             : direction>0 ? 'ascending' : 'folding back';
+    phaseText.textContent=phase;
+
+    // dark basin base
+    const dark = smooth(-.2,-1,scalar) * -1; // remains 0 due reversed args? fix below
+    const basin = smooth(.15,1,-scalar);
+    const bright = smooth(.1,1,scalar);
+
+    const base=ctx.createRadialGradient(w*.72,h*.48,0,w*.72,h*.48,Math.max(w,h)*.85);
+    base.addColorStop(0,`rgb(${Math.floor(10+18*bright)},${Math.floor(12+20*bright)},${Math.floor(17+25*bright)})`);
+    base.addColorStop(1,`rgb(${Math.floor(2+3*bright)},${Math.floor(3+3*bright)},${Math.floor(5+4*bright)})`);
+    ctx.fillStyle=base; ctx.fillRect(0,0,w,h);
+
+    // scalar moat: a warped annular convolution field
+    const cx=w*(.72 + (pointer.x-.5)*.055*pointer.energy);
+    const cy=h*(.50 + (pointer.y-.5)*.055*pointer.energy);
+    const minD=Math.min(w,h);
+    const r0=minD*(.12 + .12*bright);
+    const spread=minD*(.21 + .15*conv + .08*Math.abs(scalar));
+
+    ctx.save();
+    ctx.globalCompositeOperation='screen';
+    const rings=72;
+    for(let i=0;i<rings;i++){
+      const u=i/(rings-1);
+      const wave=Math.sin(u*18 - now*.0018*(.4+conv) + scalar*8);
+      const warp=(Math.sin(u*31+now*.0009)+Math.cos(u*13-now*.0011))*.5;
+      const rr=r0 + u*spread + wave*(8+32*conv) + warp*(3+10*pointer.energy);
+      const alpha=(1-u)*(.015+.055*conv) * (0.45+0.55*bright) * (1-.45*basin);
+      const hueBoost = smooth(.45,1,Math.abs(scalar));
+      ctx.strokeStyle=`rgba(${Math.floor(135+95*hueBoost)},${Math.floor(145+70*hueBoost)},${Math.floor(165+55*hueBoost)},${alpha})`;
+      ctx.lineWidth=1 + 2*(1-u)*conv;
+      ctx.beginPath();
+      const seg=120;
+      for(let j=0;j<=seg;j++){
+        const a=j/seg*Math.PI*2;
+        const px=Math.cos(a), py=Math.sin(a);
+        const field =
+          Math.sin(a*3 + now*.0007 + u*5)*(.018+.045*conv) +
+          Math.sin(a*7 - now*.00045 + scalar*4)*(.01+.025*pointer.energy);
+        const sx = 1 + field + (pointer.x-.5)*.06*pointer.energy*Math.cos(a);
+        const sy = .64 + field*.7 + (pointer.y-.5)*.05*pointer.energy*Math.sin(a);
+        const x=cx + Math.cos(a)*rr*sx;
+        const y=cy + Math.sin(a)*rr*sy;
+        if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+
+
+    // second maximum moat: dormant at low scalar, dominant near +∞
+    const maxMoat = smooth(.58,1,scalar);
+    if(maxMoat>0){
+      ctx.save();
+      ctx.globalCompositeOperation='screen';
+      const outerBase = r0 + spread*1.18;
+      const outerBands = 34;
+      for(let i=0;i<outerBands;i++){
+        const u=i/(outerBands-1);
+        const pulse=Math.sin(now*.0015 + u*24 + scalar*9);
+        const rr=outerBase + u*minD*(.16+.11*conv) + pulse*(4+18*maxMoat);
+        const alpha=maxMoat*(1-u)*(.018+.07*conv);
+        ctx.strokeStyle=`rgba(${Math.floor(170+80*maxMoat)},${Math.floor(175+74*maxMoat)},${Math.floor(195+58*maxMoat)},${alpha})`;
+        ctx.lineWidth=1+2.8*maxMoat*(1-u);
+        ctx.beginPath();
+        const seg=132;
+        for(let j=0;j<=seg;j++){
+          const a=j/seg*Math.PI*2;
+          const ripple =
+            Math.sin(a*5-now*.0008+u*7)*(.012+.025*conv) +
+            Math.cos(a*11+now*.00055)*(.006+.018*maxMoat);
+          const sx=1.04+ripple;
+          const sy=.69+ripple*.8;
+          const x=cx+Math.cos(a)*rr*sx;
+          const y=cy+Math.sin(a)*rr*sy;
+          if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+      }
+
+      // bright compression ridge at absolute maximum
+      if(scalar>.90){
+        const ridge=smooth(.90,1,scalar);
+        ctx.translate(cx,cy);
+        ctx.rotate(.11);
+        ctx.strokeStyle=`rgba(255,255,255,${.16+.48*ridge})`;
+        ctx.lineWidth=1.2+3.5*ridge;
+        ctx.beginPath();
+        ctx.ellipse(0,0,outerBase+minD*.13,.70*(outerBase+minD*.13),0,0,Math.PI*2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // moat core / infinity event horizon
+    const halo=ctx.createRadialGradient(cx,cy,r0*.1,cx,cy,r0*1.9);
+    if(scalar>=0){
+      halo.addColorStop(0,`rgba(255,255,255,${.08+.18*bright})`);
+      halo.addColorStop(.28,`rgba(190,200,220,${.06+.11*bright})`);
+      halo.addColorStop(.54,`rgba(70,78,96,${.05+.06*bright})`);
+      halo.addColorStop(1,'rgba(0,0,0,0)');
+    }else{
+      halo.addColorStop(0,`rgba(0,0,0,${.75+.18*basin})`);
+      halo.addColorStop(.35,`rgba(18,20,28,${.22+.24*basin})`);
+      halo.addColorStop(.65,'rgba(5,6,9,.06)');
+      halo.addColorStop(1,'rgba(0,0,0,0)');
+    }
+    ctx.fillStyle=halo;ctx.beginPath();ctx.arc(cx,cy,r0*1.9,0,Math.PI*2);ctx.fill();
+
+    // fold slit appears near infinity
+    const gate=smooth(.72,1,Math.abs(scalar));
+    if(gate>0){
+      ctx.save();
+      ctx.translate(cx,cy);
+      ctx.rotate(-.18);
+      ctx.globalCompositeOperation=scalar>0?'screen':'source-over';
+      const slit=ctx.createLinearGradient(-r0*1.3,0,r0*1.3,0);
+      slit.addColorStop(0,'rgba(255,255,255,0)');
+      slit.addColorStop(.5,scalar>0?`rgba(255,255,255,${.08+.55*gate})`:`rgba(0,0,0,${.25+.7*gate})`);
+      slit.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=slit;
+      ctx.fillRect(-r0*1.35,-1.2-gate*1.5,r0*2.7,2.4+gate*3);
+      ctx.restore();
+    }
+
+    // dark overlay for below-zero return
+    if(basin>0){
+      ctx.fillStyle=`rgba(0,0,0,${.18+.48*basin})`;
+      ctx.fillRect(0,0,w,h);
+      const vign=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(w,h)*.75);
+      vign.addColorStop(0,`rgba(0,0,0,${.10*basin})`);
+      vign.addColorStop(1,`rgba(0,0,0,${.55*basin})`);
+      ctx.fillStyle=vign;ctx.fillRect(0,0,w,h);
+    }
+
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
