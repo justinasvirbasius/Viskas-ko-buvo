@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Voronoi Field Developments — Forward / Back Clipper</title>
+<style>
+:root{--bg:#080b11;--panel:rgba(10,14,24,.76);--line:rgba(255,255,255,.12);--text:#f2f5ff;--muted:#94a0bb;--acid:#d9ff62;--cyan:#62e7ff;--rose:#ff729d;--amber:#ffd46e}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}.grain{position:fixed;inset:0;pointer-events:none;opacity:.15;background-image:radial-gradient(circle at 30% 20%,rgba(255,255,255,.06) 0 1px,transparent 1px);background-size:8px 8px;mix-blend-mode:overlay}
+header{position:fixed;left:18px;top:16px;z-index:5;pointer-events:none;max-width:min(700px,calc(100vw - 370px))}.eyebrow{font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--acid);display:flex;gap:8px;align-items:center}.dot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 18px currentColor}h1{margin:7px 0 7px;font-size:clamp(30px,5vw,67px);line-height:.93;letter-spacing:-.055em}.sub{margin:0;max-width:650px;color:var(--muted);font-size:13px;line-height:1.5}.panel{position:fixed;right:16px;top:16px;z-index:7;width:min(344px,calc(100vw - 32px));padding:13px;border:1px solid var(--line);border-radius:18px;background:var(--panel);backdrop-filter:blur(18px) saturate(135%);box-shadow:0 24px 70px rgba(0,0,0,.32)}.panel h2{margin:0 0 9px;font-size:12px;letter-spacing:.14em;text-transform:uppercase}.row{display:grid;grid-template-columns:1fr 132px;gap:10px;align-items:center;margin:9px 0}.row label{font-size:11px;color:var(--muted)}input[type=range]{width:100%;accent-color:var(--acid)}.buttons{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:11px}button{padding:8px 6px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.055);color:var(--text);font-size:10px;font-weight:800;cursor:pointer}button.active{background:rgba(217,255,98,.12);border-color:rgba(217,255,98,.5);color:var(--acid)}.status{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}.pill{font-size:9px;padding:5px 7px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:rgba(0,0,0,.2)}.pill.good{color:var(--acid)}.pill.warn{color:var(--amber)}
+.legend{position:fixed;left:18px;bottom:18px;z-index:6;display:grid;grid-template-columns:repeat(4,auto);gap:7px}.leg{padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:rgba(8,12,20,.74);backdrop-filter:blur(10px);font-size:10px;color:var(--muted)}.sw{display:inline-block;width:9px;height:9px;border-radius:999px;margin-right:6px;vertical-align:-1px}.hud{position:fixed;right:18px;bottom:18px;z-index:6;display:flex;gap:8px}.card{min-width:76px;padding:8px 10px;border-radius:13px;border:1px solid var(--line);background:rgba(7,10,18,.74);backdrop-filter:blur(10px)}.big{font-size:20px;font-weight:900;letter-spacing:-.04em}.tiny{font-size:8px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+.readout{position:fixed;left:18px;top:154px;z-index:5;width:310px;padding:11px;border:1px solid var(--line);border-radius:14px;background:rgba(7,10,18,.58);backdrop-filter:blur(10px);pointer-events:none}.readout b{display:block;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:#fff;margin-bottom:4px}.readout p{margin:0;color:var(--muted);font-size:10px;line-height:1.45}.ahead{color:var(--cyan)}.behind{color:var(--rose)}.now{color:var(--acid)}
+@media(max-width:800px){header{left:12px;top:10px;max-width:78vw}h1{font-size:40px}.sub{font-size:11px}.readout{top:136px;left:12px;width:260px}.panel{top:auto;bottom:10px;left:10px;right:10px;width:auto;padding:10px}.panel h2{display:none}.row{grid-template-columns:1fr 118px;margin:6px 0}.buttons{gap:4px}.legend{left:10px;bottom:184px;grid-template-columns:repeat(2,auto)}.hud{right:10px;bottom:184px}}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas><div class="grain"></div>
+<header><div class="eyebrow"><span class="dot"></span> WebGPU · Voronoi Governor</div><h1>Field Developments</h1><p class="sub">Normal Voronoi ownership remains the geometry. The particles now move through a living flow field: local rigour decides how strongly they obey the field, while self-governance decides how forcefully each particle corrects itself when its motion disagrees with the governing direction.</p></header>
+<div class="readout"><b>Shader truce</b><p><span class="now">WHAT IS VORONOI</span> = nearest-site ownership now. <span class="ahead">WHAT IS AHEAD</span> = nearest predicted site after its velocity horizon. <span class="behind">WHAT WAS BEHIND</span> = clipped trace opposite velocity. White seams are objections: places where present and projected ownership disagree. Rigour now turns that disagreement into motion—the stronger it is, the more aggressively particles self-correct into the governing flow.</p></div>
+<aside class="panel">
+<h2>Governor Objective</h2>
+<div class="row"><label>Cursor clip radius</label><input id="clip" type="range" min="0.03" max="0.26" value="0.10" step="0.005"></div>
+<div class="row"><label>Forward horizon</label><input id="ahead" type="range" min="0" max="0.24" value="0.105" step="0.005"></div>
+<div class="row"><label>Backward memory</label><input id="behind" type="range" min="0" max="0.24" value="0.080" step="0.005"></div>
+<div class="row"><label>Governor objection</label><input id="govern" type="range" min="0" max="1" value="0.68" step="0.01"></div>
+<div class="row"><label>Particle belief</label><input id="belief" type="range" min="0" max="1.8" value="0.82" step="0.01"></div>
+<div class="row"><label>Field rigour</label><input id="rigour" type="range" min="0" max="1" value="0.72" step="0.01"></div>
+<div class="row"><label>Self governance</label><input id="selfgov" type="range" min="0" max="1.4" value="0.88" step="0.01"></div>
+<div class="row"><label>Voronoi seam</label><input id="edge" type="range" min="0.002" max="0.035" value="0.010" step="0.001"></div>
+<div class="buttons"><button id="place" class="active">PLACE</button><button id="steer">STEER</button><button id="push">PUSH</button><button id="erase">ERASE</button><button id="reset">RESET</button></div>
+<div class="status"><span id="gpu" class="pill">GPU…</span><span class="pill">present</span><span class="pill">ahead</span><span class="pill">behind</span><span class="pill">WGSL</span></div>
+</aside>
+<div class="legend"><div class="leg"><span class="sw" style="background:var(--acid)"></span>present cell</div><div class="leg"><span class="sw" style="background:var(--cyan)"></span>ahead field</div><div class="leg"><span class="sw" style="background:var(--rose)"></span>back clip</div><div class="leg"><span class="sw" style="background:white"></span>objection seam</div></div>
+<div class="hud"><div class="card"><div id="count" class="big">18</div><div class="tiny">particles</div></div><div class="card"><div id="obj" class="big">0%</div><div class="tiny">objection</div></div></div>
+<script type="module">
+const canvas=document.querySelector('#view');
+const $=id=>document.querySelector('#'+id); const ui={clip:$('clip'),ahead:$('ahead'),behind:$('behind'),govern:$('govern'),belief:$('belief'),rigour:$('rigour'),selfgov:$('selfgov'),edge:$('edge'),gpu:$('gpu'),count:$('count'),obj:$('obj')};
+let mode='place',pointer={x:.5,y:.5,down:false,lastX:.5,lastY:.5}; const MAX=128; let sites=[];
+function mk(x=.1+Math.random()*.8,y=.18+Math.random()*.68){let a=Math.random()*Math.PI*2,s=.00035+Math.random()*.00075;return{x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,h:Math.random(),belief:.55+Math.random()*.7,conviction:.35+Math.random()*.65}}
+for(let i=0;i<18;i++)sites.push(mk());
+for(const id of ['place','steer','push','erase'])$(id).onclick=()=>{mode=id;document.querySelectorAll('.buttons button').forEach(b=>b.classList.remove('active'));$(id).classList.add('active')};
+$('reset').onclick=()=>{sites=[];for(let i=0;i<18;i++)sites.push(mk());sync()}; function sync(){ui.count.textContent=sites.length}
+function pos(e){const r=canvas.getBoundingClientRect();pointer.lastX=pointer.x;pointer.lastY=pointer.y;pointer.x=(e.clientX-r.left)/r.width;pointer.y=(e.clientY-r.top)/r.height}
+canvas.addEventListener('pointerdown',e=>{pos(e);pointer.down=true;canvas.setPointerCapture(e.pointerId);act(true)});canvas.addEventListener('pointermove',e=>{pos(e);if(pointer.down)act(false)});canvas.addEventListener('pointerup',e=>{pointer.down=false;try{canvas.releasePointerCapture(e.pointerId)}catch{}});
+function act(first){const ar=innerWidth/innerHeight,rr=+ui.clip.value;
+ if(mode==='place'&&first&&sites.length<MAX){sites.push(mk(pointer.x,pointer.y));sync()}
+ if(mode==='erase'){sites=sites.filter(s=>Math.hypot((s.x-pointer.x)*ar,s.y-pointer.y)>rr);sync()}
+ if(mode==='push'){for(const s of sites){let dx=(s.x-pointer.x)*ar,dy=s.y-pointer.y,d=Math.hypot(dx,dy);if(d<rr&&d>.0001){let f=(1-d/rr)*.012;s.vx+=dx/d*f/ar;s.vy+=dy/d*f}}}
+ if(mode==='steer'){let mx=(pointer.x-pointer.lastX),my=(pointer.y-pointer.lastY);for(const s of sites){let dx=(s.x-pointer.x)*ar,dy=s.y-pointer.y,d=Math.hypot(dx,dy);if(d<rr){let w=1-d/rr;s.vx=s.vx*(1-.24*w)+mx*.055*w;s.vy=s.vy*(1-.24*w)+my*.055*w;s.belief=Math.min(1.8,s.belief+.02*w)}}}
+}
+function resize(){const d=Math.min(devicePixelRatio||1,2),w=Math.max(1,Math.floor(innerWidth*d)),h=Math.max(1,Math.floor(innerHeight*d));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h}}
+let device,ctx,pipeline,bindGroup,siteBuffer,uniformBuffer,useGPU=false;
+const shader=`
+struct Globals{res:vec2f,pointer:vec2f,time:f32,clip:f32,edge:f32,count:f32,ahead:f32,behind:f32,govern:f32,belief:f32,pad:vec2f}
+struct Site{p:vec2f,v:vec2f,h:f32,belief:f32,pad:vec2f}
+@group(0) @binding(0)var<uniform>g:Globals; @group(0) @binding(1)var<storage,read>sites:array<Site>;
+fn hue(h:f32)->vec3f{let k=vec3f(0.,4.,2.);return .46+.36*cos(6.28318*(h+k/6.));}
+@vertex fn vs(@builtin(vertex_index)i:u32)->@builtin(position)vec4f{var p=array<vec2f,3>(vec2f(-1.,-1.),vec2f(3.,-1.),vec2f(-1.,3.));return vec4f(p[i],0.,1.);}
+@fragment fn fs(@builtin(position)P:vec4f)->@location(0)vec4f{
+ let uv=P.xy/g.res;let asp=g.res.x/g.res.y;var b0=1e9;var s0=1e9;var bF=1e9;var bB=1e9;var i0=0u;var iF=0u;var iB=0u;
+ for(var i=0u;i<u32(g.count);i++){
+   let q=sites[i];let vel=q.v*g.belief*q.belief;let pF=q.p+vel*g.ahead*95.;let pB=q.p-vel*g.behind*95.;
+   let d0=length(vec2f((uv.x-q.p.x)*asp,uv.y-q.p.y));let dF=length(vec2f((uv.x-pF.x)*asp,uv.y-pF.y));let dB=length(vec2f((uv.x-pB.x)*asp,uv.y-pB.y));
+   if(d0<b0){s0=b0;b0=d0;i0=i;}else if(d0<s0){s0=d0;} if(dF<bF){bF=dF;iF=i;} if(dB<bB){bB=dB;iB=i;}
+ }
+ var col=vec3f(.018,.024,.04);if(g.count>0.){
+   let base=hue(sites[i0].h);col=mix(col,base*.48,.38+exp(-b0*10.)*.13);
+   let ridge=1.-smoothstep(0.,g.edge,s0-b0);col+=ridge*vec3f(.62,.82,1.)*.55;
+   let aheadMask=exp(-bF*13.)*.28;let backMask=exp(-bB*14.)*.22;col+=aheadMask*vec3f(.18,.82,1.);col+=backMask*vec3f(1.,.19,.46);
+   let objection=select(0.,1.,i0!=iF);let conflict=objection*(.18+.55*g.govern)*(1.-smoothstep(.0,.18,b0));col+=conflict*vec3f(1.);
+   let seed=1.-smoothstep(.005,.012,b0);col=mix(col,vec3f(1.,1.,.86),seed*.92);
+   let q=sites[i0];let vel=normalize(q.v+vec2f(.000001));let rel=vec2f((uv.x-q.p.x)*asp,uv.y-q.p.y);let forward=max(dot(normalize(rel+vec2f(.000001)),normalize(vec2f(vel.x*asp,vel.y))),0.);let dirBand=pow(forward,8.)*exp(-b0*8.)*.18;col+=dirBand*vec3f(.18,.8,1.);
+ }
+ let cp=vec2f((uv.x-g.pointer.x)*asp,uv.y-g.pointer.y);let cd=length(cp);let ring=1.-smoothstep(.0025,.008,abs(cd-g.clip));col+=ring*vec3f(.85,1.,.38);let inside=1.-smoothstep(g.clip*.75,g.clip,cd);col+=inside*vec3f(.03,.06,.02);
+ let scan=.012*sin((uv.y*g.res.y+g.time*42.)*.04);col+=scan;let vig=smoothstep(1.,.22,distance(uv,vec2f(.5)));col*=.66+.34*vig;return vec4f(pow(max(col,vec3f(0.)),vec3f(.9)),1.);
+}`;
+async function initGPU(){if(!navigator.gpu)throw Error('WebGPU unavailable');const adapter=await navigator.gpu.requestAdapter();if(!adapter)throw Error('No adapter');device=await adapter.requestDevice();ctx=canvas.getContext('webgpu');const format=navigator.gpu.getPreferredCanvasFormat();ctx.configure({device,format,alphaMode:'premultiplied'});pipeline=device.createRenderPipeline({layout:'auto',vertex:{module:device.createShaderModule({code:shader}),entryPoint:'vs'},fragment:{module:device.createShaderModule({code:shader}),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});uniformBuffer=device.createBuffer({size:64,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});siteBuffer=device.createBuffer({size:MAX*32,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});bindGroup=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:uniformBuffer}},{binding:1,resource:{buffer:siteBuffer}}]});useGPU=true;ui.gpu.textContent='WEBGPU LIVE';ui.gpu.className='pill good'}
+function fieldAt(x,y,t){
+  // Layered, divergence-light flow: curl + orbital governor + weak traveling wave.
+  const cx=x-.5, cy=y-.53;
+  const r2=cx*cx+cy*cy+.035;
+  const swirlX=-cy/(r2*5.4), swirlY=cx/(r2*5.4);
+  const waveX=Math.sin((y*7.0+t*.00035))*0.34;
+  const waveY=Math.cos((x*6.0-t*.00029))*0.30;
+  const lane=Math.sin((x+y)*9.0+t*.00021)*0.22;
+  let fx=swirlX+waveX+lane, fy=swirlY+waveY-lane*.65;
+  const m=Math.hypot(fx,fy)||1; return {x:fx/m,y:fy/m};
+}
+function physics(dt,now){
+ const rig=+ui.rigour.value, self=+ui.selfgov.value, belief=+ui.belief.value;
+ // Neighbour consensus creates a local Voronoi "law" without replacing the normal cells.
+ for(let i=0;i<sites.length;i++){
+   const s=sites[i], f=fieldAt(s.x,s.y,now);
+   let nvx=0,nvy=0,nw=0;
+   for(let j=0;j<sites.length;j++) if(i!==j){const q=sites[j],dx=q.x-s.x,dy=q.y-s.y,d2=dx*dx+dy*dy;if(d2<.020){let w=1/(.006+d2);nvx+=q.vx*w;nvy+=q.vy*w;nw+=w}}
+   if(nw){nvx/=nw;nvy/=nw}
+   const sp=Math.hypot(s.vx,s.vy)+1e-6, hx=s.vx/sp, hy=s.vy/sp;
+   const agreement=hx*f.x+hy*f.y; // -1 rebellion, +1 compliance
+   const strict=Math.max(0,rig*(1-agreement)*.5);
+   const righteous=(.18+.82*s.conviction)*self;
+   // High rigour punishes disagreement; low rigour lets personal conviction bend the flow.
+   const desiredX=f.x*(rig + strict*righteous) + nvx*(1-rig)*170 + hx*(1-rig)*s.conviction;
+   const desiredY=f.y*(rig + strict*righteous) + nvy*(1-rig)*170 + hy*(1-rig)*s.conviction;
+   const dm=Math.hypot(desiredX,desiredY)||1;
+   const target=.00065 + belief*.00036 + righteous*.00018;
+   const gain=(.014 + rig*.055 + strict*.08)*dt;
+   s.vx += (desiredX/dm*target-s.vx)*gain;
+   s.vy += (desiredY/dm*target-s.vy)*gain;
+   s.conviction=Math.max(.12,Math.min(1.2,s.conviction+(agreement>.4?.0008:-.00035)*dt));
+ }
+ for(const s of sites){s.x+=s.vx*dt;s.y+=s.vy*dt;s.vx*=.997;s.vy*=.997;if(s.x<.015){s.x=.015;s.vx=Math.abs(s.vx)}if(s.x>.985){s.x=.985;s.vx=-Math.abs(s.vx)}if(s.y<.02){s.y=.02;s.vy=Math.abs(s.vy)}if(s.y>.985){s.y=.985;s.vy=-Math.abs(s.vy)}}
+ let n=0;for(const s of sites){const f=fieldAt(s.x,s.y,now),m=Math.hypot(s.vx,s.vy)||1;n+=Math.max(0,1-(s.vx/m*f.x+s.vy/m*f.y))*0.5}
+ ui.obj.textContent=Math.round((sites.length?n/sites.length:0)*100)+'%'
+}
+function renderGPU(now){const u=new Float32Array(16);u.set([canvas.width,canvas.height,pointer.x,pointer.y,now*.001,+ui.clip.value,+ui.edge.value,sites.length,+ui.ahead.value,+ui.behind.value,+ui.govern.value,+ui.belief.value,0,0,0,0]);device.queue.writeBuffer(uniformBuffer,0,u);const raw=new Float32Array(MAX*8);for(let i=0;i<sites.length;i++){let o=i*8,s=sites[i];raw[o]=s.x;raw[o+1]=s.y;raw[o+2]=s.vx;raw[o+3]=s.vy;raw[o+4]=s.h;raw[o+5]=s.belief*(.7+.3*s.conviction)}device.queue.writeBuffer(siteBuffer,0,raw);const enc=device.createCommandEncoder(),pass=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),clearValue:{r:.02,g:.025,b:.04,a:1},loadOp:'clear',storeOp:'store'}]});pass.setPipeline(pipeline);pass.setBindGroup(0,bindGroup);pass.draw(3);pass.end();device.queue.submit([enc.finish()])}
+let c2d;function render2D(){if(!c2d)c2d=canvas.getContext('2d');const c=c2d,w=canvas.width,h=canvas.height;c.fillStyle='#090b12';c.fillRect(0,0,w,h);const step=Math.max(8,Math.floor(10*Math.min(devicePixelRatio||1,2)));for(let y=0;y<h;y+=step)for(let x=0;x<w;x+=step){let best=1e9,si=0;for(let i=0;i<sites.length;i++){let dx=x/w-sites[i].x,dy=y/h-sites[i].y,d=dx*dx+dy*dy;if(d<best){best=d;si=i}}if(sites.length){c.fillStyle=`hsla(${sites[si].h*360},72%,54%,.16)`;c.fillRect(x,y,step+1,step+1)}}for(const s of sites){let ax=(s.x+s.vx*+ui.ahead.value*95)*w,ay=(s.y+s.vy*+ui.ahead.value*95)*h,bx=(s.x-s.vx*+ui.behind.value*95)*w,by=(s.y-s.vy*+ui.behind.value*95)*h;c.strokeStyle='#62e7ff88';c.beginPath();c.moveTo(s.x*w,s.y*h);c.lineTo(ax,ay);c.stroke();c.strokeStyle='#ff729d66';c.beginPath();c.moveTo(s.x*w,s.y*h);c.lineTo(bx,by);c.stroke();c.fillStyle='#fff';c.beginPath();c.arc(s.x*w,s.y*h,3,0,Math.PI*2);c.fill()}c.strokeStyle='#d9ff62';c.lineWidth=2;c.beginPath();c.arc(pointer.x*w,pointer.y*h,+ui.clip.value*h,0,Math.PI*2);c.stroke()}
+let last=performance.now();function loop(now){resize();let dt=Math.min(2.5,(now-last)/16.67);last=now;physics(dt,now);useGPU?renderGPU(now):render2D();requestAnimationFrame(loop)}resize();initGPU().catch(e=>{console.warn(e);ui.gpu.textContent='CANVAS FALLBACK';ui.gpu.className='pill warn'}).finally(()=>requestAnimationFrame(loop));
+</script>
+</body>
+</html>

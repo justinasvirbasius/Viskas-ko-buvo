@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Voronoi Field Clipper — WebGPU Placement Game</title>
+<style>
+  :root{--bg:#090b12;--panel:rgba(12,16,28,.72);--line:rgba(255,255,255,.12);--text:#eef2ff;--muted:#99a2bd;--accent:#d8ff62;--cyan:#65e6ff;--danger:#ff6a8a}
+  *{box-sizing:border-box} html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden}
+  canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .grain{pointer-events:none;position:fixed;inset:0;opacity:.18;background-image:radial-gradient(circle at 30% 20%,rgba(255,255,255,.055) 0 1px,transparent 1px);background-size:8px 8px;mix-blend-mode:overlay}
+  header{position:fixed;left:20px;top:18px;z-index:5;max-width:min(620px,calc(100vw - 40px));pointer-events:none}
+  .eyebrow{display:flex;gap:8px;align-items:center;color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+  .dot{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 18px currentColor}
+  h1{margin:8px 0 4px;font-size:clamp(28px,5vw,66px);line-height:.95;letter-spacing:-.055em;font-weight:900;max-width:720px}
+  .sub{margin:10px 0 0;max-width:560px;color:var(--muted);font-size:14px;line-height:1.45}
+  .panel{position:fixed;z-index:7;right:18px;top:18px;width:min(330px,calc(100vw - 36px));padding:14px;border:1px solid var(--line);border-radius:18px;background:var(--panel);backdrop-filter:blur(18px) saturate(140%);box-shadow:0 20px 60px rgba(0,0,0,.28)}
+  .panel h2{margin:0 0 10px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#fff}
+  .row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin:10px 0}.row label{font-size:12px;color:var(--muted)}
+  input[type=range]{width:135px;accent-color:var(--accent)}
+  .buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}
+  button{border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.055);color:var(--text);padding:9px 8px;font-weight:700;font-size:11px;cursor:pointer}button:hover{background:rgba(255,255,255,.1)}button.active{border-color:rgba(216,255,98,.6);background:rgba(216,255,98,.12);color:var(--accent)}
+  .status{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.pill{font-size:10px;padding:5px 7px;border:1px solid var(--line);border-radius:999px;color:var(--muted);background:rgba(0,0,0,.2)}.pill.good{color:var(--accent)}.pill.warn{color:#ffd36b}
+  .hud{position:fixed;z-index:6;left:18px;bottom:18px;display:flex;gap:10px;align-items:flex-end}.card{padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(7,10,18,.72);backdrop-filter:blur(12px)}.big{font-size:24px;font-weight:900;letter-spacing:-.04em}.tiny{font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  .help{position:fixed;z-index:6;right:18px;bottom:18px;max-width:360px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(7,10,18,.72);color:var(--muted);font-size:11px;line-height:1.5;backdrop-filter:blur(12px)}
+  .kbd{display:inline-block;padding:1px 5px;border:1px solid var(--line);border-radius:5px;color:#fff;background:rgba(255,255,255,.06)}
+  @media(max-width:760px){.panel{top:auto;bottom:14px;right:12px;left:12px;width:auto;padding:10px}.panel h2{display:none}.row{grid-template-columns:1fr 120px;margin:7px 0}.buttons{grid-template-columns:repeat(5,1fr)}header{left:14px;top:12px}.sub{font-size:12px;max-width:76vw}.hud{bottom:188px;left:12px}.help{display:none}h1{font-size:42px}}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas><div class="grain"></div>
+<header>
+  <div class="eyebrow"><span class="dot"></span> WebGPU Field Lab</div>
+  <h1>Voronoi Field Clipper</h1>
+  <p class="sub">A placement-game exam: seed the field, push objects through the cursor aperture, and sculpt territory by moving sites through a live Voronoi partition.</p>
+</header>
+<aside class="panel">
+  <h2>Field Console</h2>
+  <div class="row"><label for="clip">Cursor clip radius</label><input id="clip" type="range" min="0.03" max="0.28" value="0.11" step="0.005"></div>
+  <div class="row"><label for="drift">Particle drift</label><input id="drift" type="range" min="0" max="1.8" value="0.45" step="0.01"></div>
+  <div class="row"><label for="edge">Voronoi edge width</label><input id="edge" type="range" min="0.002" max="0.035" value="0.012" step="0.001"></div>
+  <div class="buttons">
+    <button id="place" class="active">PLACE</button><button id="push">PUSH</button><button id="erase">ERASE</button><button id="burst">BURST</button><button id="reset">RESET</button>
+  </div>
+  <div class="status"><span id="gpu" class="pill">GPU…</span><span class="pill">WGSL</span><span class="pill">storage buffer</span><span class="pill">pointer capture</span></div>
+</aside>
+<div class="hud"><div class="card"><div id="score" class="big">000</div><div class="tiny">territory score</div></div><div class="card"><div id="count" class="big">12</div><div class="tiny">objects</div></div></div>
+<div class="help"><b>Exam:</b> place sites with tap/click. Switch to <span class="kbd">PUSH</span> and drag the cursor clipper through objects. <span class="kbd">ERASE</span> removes nearby sites. <span class="kbd">BURST</span> injects a small particle constellation.</div>
+<script type="module">
+const canvas=document.querySelector('#view');
+const ui={clip:document.querySelector('#clip'),drift:document.querySelector('#drift'),edge:document.querySelector('#edge'),gpu:document.querySelector('#gpu'),score:document.querySelector('#score'),count:document.querySelector('#count')};
+let mode='place', pointer={x:.5,y:.5,down:false}, t0=performance.now(), frame=0;
+const MAX=128; let sites=[];
+function randSite(){return {x:.12+Math.random()*.76,y:.18+Math.random()*.68,vx:(Math.random()-.5)*.0006,vy:(Math.random()-.5)*.0006,h:Math.random()};}
+for(let i=0;i<12;i++)sites.push(randSite());
+for(const id of ['place','push','erase'])document.querySelector('#'+id).onclick=()=>{mode=id;document.querySelectorAll('.buttons button').forEach(b=>b.classList.remove('active'));document.querySelector('#'+id).classList.add('active')};
+document.querySelector('#burst').onclick=()=>{for(let i=0;i<9&&sites.length<MAX;i++){let a=Math.random()*Math.PI*2,r=Math.random()*.08;sites.push({x:pointer.x+Math.cos(a)*r,y:pointer.y+Math.sin(a)*r,vx:(Math.random()-.5)*.001,vy:(Math.random()-.5)*.001,h:Math.random()});} syncCount();};
+document.querySelector('#reset').onclick=()=>{sites=[];for(let i=0;i<12;i++)sites.push(randSite());syncCount();};
+function syncCount(){ui.count.textContent=String(sites.length).padStart(2,'0')}
+function pos(e){const r=canvas.getBoundingClientRect();pointer.x=(e.clientX-r.left)/r.width;pointer.y=(e.clientY-r.top)/r.height;}
+canvas.addEventListener('pointerdown',e=>{pos(e);pointer.down=true;canvas.setPointerCapture(e.pointerId);act(true)});
+canvas.addEventListener('pointermove',e=>{pos(e);if(pointer.down)act(false)});
+canvas.addEventListener('pointerup',e=>{pointer.down=false;try{canvas.releasePointerCapture(e.pointerId)}catch{}});
+function act(first){const ar=canvas.clientWidth/canvas.clientHeight, rr=+ui.clip.value;
+ if(mode==='place'&&first&&sites.length<MAX){sites.push({x:pointer.x,y:pointer.y,vx:0,vy:0,h:Math.random()});syncCount()}
+ if(mode==='erase'){sites=sites.filter(s=>Math.hypot((s.x-pointer.x)*ar,s.y-pointer.y)>rr);syncCount()}
+ if(mode==='push'){for(const s of sites){let dx=(s.x-pointer.x)*ar,dy=s.y-pointer.y,d=Math.hypot(dx,dy);if(d<rr&&d>.0001){let f=(1-d/rr)*.014;s.vx+=dx/d*f/ar;s.vy+=dy/d*f;}}}
+}
+function resize(){const d=Math.min(devicePixelRatio||1,2);const w=Math.max(1,Math.floor(innerWidth*d)),h=Math.max(1,Math.floor(innerHeight*d));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}}
+
+let device,ctx,pipeline,bindGroup,siteBuffer,uniformBuffer,useGPU=false;
+const shader=`
+struct Globals { res: vec2f, pointer: vec2f, time: f32, clip: f32, edge: f32, count: f32, drift: f32, pad: f32 }
+struct Site { p: vec2f, v: vec2f, h: f32, pad: vec3f }
+@group(0) @binding(0) var<uniform> g: Globals;
+@group(0) @binding(1) var<storage,read> sites: array<Site>;
+fn hue(h:f32)->vec3f{
+  let k=vec3f(0.0,4.0,2.0); return 0.46+0.36*cos(6.28318*(h+k/6.0));
+}
+@vertex fn vs(@builtin(vertex_index) i:u32)->@builtin(position) vec4f{
+  var p=array<vec2f,3>(vec2f(-1.,-1.),vec2f(3.,-1.),vec2f(-1.,3.)); return vec4f(p[i],0.,1.);
+}
+@fragment fn fs(@builtin(position) P:vec4f)->@location(0) vec4f{
+  let uv=P.xy/g.res; let asp=g.res.x/g.res.y; var best=1e9; var second=1e9; var idx=0u;
+  for(var i=0u;i<u32(g.count);i++){
+    let d=distance(vec2f((uv.x-sites[i].p.x)*asp,uv.y-sites[i].p.y),vec2f(0.));
+    if(d<best){second=best;best=d;idx=i;}else if(d<second){second=d;}
+  }
+  var col=vec3f(.025,.032,.055);
+  if(g.count>0.){
+    let base=hue(sites[idx].h); let glow=exp(-best*9.0); col=mix(vec3f(.018,.022,.04),base*.58,0.32+glow*.25);
+    let ridge=1.0-smoothstep(0.0,g.edge,second-best); col+=ridge*vec3f(.55,.78,1.)*.58;
+    let seed=1.0-smoothstep(.006,.013,best); col=mix(col,vec3f(1.,1.,.88),seed*.95);
+  }
+  let cp=vec2f((uv.x-g.pointer.x)*asp,uv.y-g.pointer.y); let cd=length(cp); let ring=1.0-smoothstep(.0025,.008,abs(cd-g.clip));
+  let inside=1.0-smoothstep(g.clip*.72,g.clip,cd); col+=ring*vec3f(.82,1.,.36); col=mix(col,col*1.32+vec3f(.03,.08,.03),inside*.14);
+  let cross=(1.0-smoothstep(.0,.0022,abs(cp.x)))*(1.0-smoothstep(.0,g.clip*.28,abs(cp.y))) + (1.0-smoothstep(.0,.0022,abs(cp.y)))*(1.0-smoothstep(.0,g.clip*.28,abs(cp.x)));
+  col+=min(cross,1.0)*vec3f(.75,1.,.42)*.5;
+  let scan=.018*sin((uv.y*g.res.y+g.time*34.)*.045); col+=scan;
+  let vig=smoothstep(.95,.28,distance(uv,vec2f(.5))); col*=.72+.28*vig;
+  return vec4f(pow(max(col,vec3f(0.)),vec3f(.88)),1.);
+}`;
+async function initGPU(){
+  if(!navigator.gpu) throw new Error('WebGPU unavailable');
+  const adapter=await navigator.gpu.requestAdapter(); if(!adapter) throw new Error('No GPU adapter');
+  device=await adapter.requestDevice(); ctx=canvas.getContext('webgpu'); const format=navigator.gpu.getPreferredCanvasFormat();
+  ctx.configure({device,format,alphaMode:'premultiplied'});
+  pipeline=device.createRenderPipeline({layout:'auto',vertex:{module:device.createShaderModule({code:shader}),entryPoint:'vs'},fragment:{module:device.createShaderModule({code:shader}),entryPoint:'fs',targets:[{format}]},primitive:{topology:'triangle-list'}});
+  uniformBuffer=device.createBuffer({size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+  siteBuffer=device.createBuffer({size:MAX*32,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+  bindGroup=device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:uniformBuffer}},{binding:1,resource:{buffer:siteBuffer}}]});
+  device.lost.then(()=>{useGPU=false;ui.gpu.textContent='GPU LOST';ui.gpu.className='pill warn';});
+  useGPU=true; ui.gpu.textContent='WEBGPU LIVE';ui.gpu.className='pill good';
+}
+function updatePhysics(dt){const drift=+ui.drift.value; const ar=innerWidth/innerHeight;
+  for(const s of sites){s.x+=s.vx*dt*drift;s.y+=s.vy*dt*drift;s.vx*=.986;s.vy*=.986;if(s.x<.015){s.x=.015;s.vx=Math.abs(s.vx)}if(s.x>.985){s.x=.985;s.vx=-Math.abs(s.vx)}if(s.y<.02){s.y=.02;s.vy=Math.abs(s.vy)}if(s.y>.985){s.y=.985;s.vy=-Math.abs(s.vy)}}
+  let territory=0; for(const s of sites) territory+=(Math.sin(s.x*9+s.y*5+t0*.0001)+1)*.5; ui.score.textContent=String(Math.round(territory*13)).padStart(3,'0');
+}
+function renderGPU(now){
+ const data=new Float32Array(12); data.set([canvas.width,canvas.height,pointer.x,pointer.y,now*.001,+ui.clip.value,+ui.edge.value,sites.length,+ui.drift.value,0,0,0]); device.queue.writeBuffer(uniformBuffer,0,data);
+ const raw=new Float32Array(MAX*8); for(let i=0;i<sites.length;i++){let o=i*8,s=sites[i];raw[o]=s.x;raw[o+1]=s.y;raw[o+2]=s.vx;raw[o+3]=s.vy;raw[o+4]=s.h;} device.queue.writeBuffer(siteBuffer,0,raw);
+ const enc=device.createCommandEncoder(),pass=enc.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),clearValue:{r:.02,g:.025,b:.04,a:1},loadOp:'clear',storeOp:'store'}]}); pass.setPipeline(pipeline);pass.setBindGroup(0,bindGroup);pass.draw(3);pass.end();device.queue.submit([enc.finish()]);
+}
+let c2d;
+function render2D(now){if(!c2d)c2d=canvas.getContext('2d'); const c=c2d,w=canvas.width,h=canvas.height,dpr=Math.min(devicePixelRatio||1,2); c.clearRect(0,0,w,h);c.fillStyle='#090b12';c.fillRect(0,0,w,h);
+ const step=Math.max(7,Math.floor(10*dpr)); for(let y=0;y<h;y+=step)for(let x=0;x<w;x+=step){let bx=1e9,si=0;for(let i=0;i<sites.length;i++){let dx=x/w-sites[i].x,dy=y/h-sites[i].y,dd=dx*dx+dy*dy;if(dd<bx){bx=dd;si=i}} if(sites.length){let hue=Math.floor(sites[si].h*360);c.fillStyle=`hsla(${hue},70%,52%,.16)`;c.fillRect(x,y,step+1,step+1)}}
+ c.lineWidth=2*dpr;c.strokeStyle='#d8ff62';c.beginPath();c.arc(pointer.x*w,pointer.y*h,+ui.clip.value*h,0,Math.PI*2);c.stroke(); for(const s of sites){c.fillStyle='#fff';c.beginPath();c.arc(s.x*w,s.y*h,3.4*dpr,0,Math.PI*2);c.fill()}
+}
+let last=performance.now();async function loop(now){resize();let dt=Math.min(2.5,(now-last)/16.67);last=now;updatePhysics(dt);if(useGPU)renderGPU(now);else render2D(now);frame++;requestAnimationFrame(loop)}
+resize();initGPU().catch(err=>{ui.gpu.textContent='CANVAS FALLBACK';ui.gpu.className='pill warn';console.warn(err)}).finally(()=>requestAnimationFrame(loop));
+</script>
+</body>
+</html>
