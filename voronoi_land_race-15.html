@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Voronoi Recluse Governance</title>
+<style>
+:root{--bg:#070a0f;--panel:rgba(9,13,20,.88);--line:rgba(255,255,255,.12);--text:#edf4ff;--muted:#8f9bad;--cyan:#5ce8ff;--lime:#c9ff67;--rose:#ff6caa;--amber:#ffc85a}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,sans-serif}canvas{position:fixed;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}.title{position:fixed;left:16px;top:14px;z-index:5;pointer-events:none}.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);font-weight:900}.title h1{font-size:clamp(28px,4vw,56px);margin:5px 0 4px;line-height:.94;letter-spacing:-.05em}.title p{margin:0;color:var(--muted);font-size:11px;max-width:520px;line-height:1.45}.panel{position:fixed;right:14px;top:14px;z-index:6;width:min(340px,calc(100vw - 28px));max-height:calc(100% - 28px);overflow:auto;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel);backdrop-filter:blur(16px)}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}.tabs button,.modes button,.wide{min-height:38px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.04);color:var(--muted);font-size:10px;font-weight:850;letter-spacing:.04em}.tabs button.active,.modes button.active,.wide.active{color:var(--lime);border-color:rgba(201,255,103,.45);background:rgba(201,255,103,.09)}.pane{display:none}.pane.active{display:block}.group{padding-top:10px;margin-top:10px;border-top:1px solid var(--line)}.group:first-child{border-top:0;margin-top:0;padding-top:0}.group b{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}.row{display:grid;grid-template-columns:1fr 130px;gap:10px;align-items:center;margin:8px 0}.row label{font-size:10px;color:var(--muted)}input[type=range],select{width:100%}input[type=range]{accent-color:var(--lime)}select{background:#101722;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px;font-size:11px}.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.wide{width:100%;margin-top:7px}.status{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.pill{font-size:9px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 7px}.pill.good{color:var(--lime)}.pill.warn{color:var(--amber)}.hud{position:fixed;left:16px;bottom:16px;z-index:5;display:flex;gap:7px;flex-wrap:wrap}.card{padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:rgba(8,12,18,.78);backdrop-filter:blur(10px)}.big{font-size:18px;font-weight:900}.tiny{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}.legend{position:fixed;left:16px;top:140px;z-index:5;pointer-events:none;display:grid;gap:6px}.leg{font-size:9px;color:var(--muted);padding:6px 8px;border:1px solid var(--line);border-radius:9px;background:rgba(8,12,18,.68)}.sw{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}.note{font-size:10px;color:var(--muted);line-height:1.45;margin-top:8px}@media(max-width:760px){.title{left:10px;top:10px}.title p{display:none}.legend{left:10px;top:90px}.panel{left:10px;right:10px;top:auto;bottom:10px;width:auto;max-height:44%}.hud{left:10px;bottom:46%}.row{grid-template-columns:1fr 116px}}
+</style>
+</head>
+<body>
+<canvas id="field"></canvas>
+<div class="title"><div class="eyebrow">entropy-steady / recluse governance</div><h1>Voronoi Recluse Field</h1><p>Low-count beings. New clicks are absorbed when capacity is reached. Cascades and moats are force geometry, not particle populations.</p></div>
+<div class="legend"><div class="leg"><span class="sw" style="background:var(--cyan)"></span>field being</div><div class="leg"><span class="sw" style="background:var(--amber)"></span>cascade resonance</div><div class="leg"><span class="sw" style="background:var(--rose)"></span>moat / entropy barrier</div></div>
+<div class="panel">
+  <div class="tabs"><button class="active" data-tab="fieldPane">FIELD</button><button data-tab="cascadePane">CASCADE</button><button data-tab="moatPane">MOAT</button></div>
+  <section class="pane active" id="fieldPane">
+    <div class="group"><b>Recluse beings</b>
+      <div class="modes"><button class="active" data-mode="place">PLACE</button><button data-mode="steer">STEER</button><button data-mode="erase">ERASE</button></div>
+      <div class="row"><label>Entity budget</label><input id="budget" type="range" min="8" max="32" value="18"></div>
+      <div class="row"><label>Entropy damping</label><input id="damping" type="range" min="0.88" max="0.995" step="0.001" value="0.965"></div>
+      <div class="row"><label>Governance rigour</label><input id="rigour" type="range" min="0" max="1" step="0.01" value="0.42"></div>
+      <div class="row"><label>Field radius</label><input id="radius" type="range" min="40" max="220" value="120"></div>
+      <div class="row"><label>Flow response</label><input id="response" type="range" min="0" max="1.4" step="0.02" value="0.42"></div>
+      <button class="wide" id="settle">SETTLE FIELD</button><button class="wide" id="reset">RESET LOW-COUNT FIELD</button>
+      <div class="note">At capacity, PLACE no longer allocates. The nearest being absorbs the click as mass/energy and stays inside the fixed budget.</div>
+    </div>
+  </section>
+  <section class="pane" id="cascadePane">
+    <div class="group"><b>Bounded cascade objects</b>
+      <div class="modes"><button data-mode="cascade">DRAW</button><button id="pulse">PULSE</button><button id="clearC">CLEAR</button></div>
+      <div class="row"><label>Doctrine</label><select id="doctrine"><option value="recluse">Recluse ending</option><option value="obtrusion">Obtrusion ending</option><option value="open">Open damping</option></select></div>
+      <div class="row"><label>Resonance</label><input id="resonance" type="range" min="0.1" max="1" step="0.01" value="0.45"></div>
+      <div class="row"><label>Pull strength</label><input id="cascadeForce" type="range" min="0" max="1.5" step="0.02" value="0.55"></div>
+      <div class="note">A cascade stores only three anchors and a lifetime. It never spawns particle nodes.</div>
+    </div>
+  </section>
+  <section class="pane" id="moatPane">
+    <div class="group"><b>Entropy moat</b>
+      <div class="modes"><button data-mode="moat">DRAW</button><button id="clearM">CLEAR</button><button id="invertM">INVERT</button></div>
+      <div class="row"><label>Moat effect</label><select id="moatType"><option value="soft">Gentle recluse</option><option value="guide">Guide flow</option><option value="split">Split field</option></select></div>
+      <div class="row"><label>Moat width</label><input id="moatWidth" type="range" min="18" max="120" value="52"></div>
+      <div class="row"><label>Moat force</label><input id="moatForce" type="range" min="0" max="1.2" step="0.02" value="0.4"></div>
+      <div class="note">Moats are capped polylines. Drawing more replaces the oldest geometry instead of growing memory indefinitely.</div>
+    </div>
+  </section>
+  <div class="status"><span class="pill good" id="countPill">18 beings</span><span class="pill" id="modePill">PLACE</span><span class="pill" id="fpsPill">steady</span></div>
+</div>
+<div class="hud"><div class="card"><div class="big" id="entityHud">18</div><div class="tiny">recluse beings</div></div><div class="card"><div class="big" id="entropyHud">0.00</div><div class="tiny">field entropy</div></div><div class="card"><div class="big" id="cascadeHud">0</div><div class="tiny">cascades</div></div><div class="card"><div class="big" id="moatHud">0</div><div class="tiny">moats</div></div></div>
+<script>
+(()=>{
+'use strict';
+const c=document.getElementById('field'),ctx=c.getContext('2d',{alpha:false});
+const DPR=Math.min(1.5,window.devicePixelRatio||1); let W=0,H=0;
+function resize(){W=innerWidth;H=innerHeight;c.width=Math.floor(W*DPR);c.height=Math.floor(H*DPR);c.style.width=W+'px';c.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0)} addEventListener('resize',resize);resize();
+const $=id=>document.getElementById(id); const num=id=>+$ (id).value;
+let mode='place', entities=[], cascades=[], moats=[], drawing=null, last=performance.now(), acc=0, frames=0, fpsClock=last, moatSign=1;
+const MAX_CASCADES=4, MAX_MOATS=5, MAX_MOAT_POINTS=36;
+function rnd(a,b){return a+Math.random()*(b-a)}
+function palette(i){const p=[[74,224,255],[199,255,102],[255,106,170],[255,199,82],[144,122,255],[95,255,190]];return p[i%p.length]}
+function seed(n=18){entities.length=0;for(let i=0;i<n;i++){entities.push({x:rnd(90,Math.max(100,W-390)),y:rnd(90,H-90),vx:rnd(-12,12),vy:rnd(-12,12),mass:1,phase:rnd(0,Math.PI*2),spin:rnd(-1,1),color:palette(i),heat:0})}}
+seed(18);
+function setMode(m){mode=m;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));$('modePill').textContent=m.toUpperCase()}
+document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id===b.dataset.tab))}));
+function nearest(x,y){let best=null,bd=1e9;for(const e of entities){const dx=e.x-x,dy=e.y-y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=e}}return [best,Math.sqrt(bd)]}
+function place(x,y){const budget=num('budget');if(entities.length<budget){const i=entities.length;entities.push({x,y,vx:0,vy:0,mass:1,phase:rnd(0,Math.PI*2),spin:rnd(-1,1),color:palette(i),heat:1});return}const [e,d]=nearest(x,y);if(!e)return; const dx=x-e.x,dy=y-e.y; e.mass=Math.min(2.4,e.mass+.08);e.vx+=dx*.08;e.vy+=dy*.08;e.heat=1}
+function erase(x,y){const [e,d]=nearest(x,y);if(e&&d<34&&entities.length>6)entities.splice(entities.indexOf(e),1)}
+function capBudget(){const b=num('budget');while(entities.length>b){const e=entities.pop(),[n]=nearest(e.x,e.y);if(n){n.mass=Math.min(2.4,n.mass+e.mass*.15);n.vx=(n.vx+e.vx)*.5;n.vy=(n.vy+e.vy)*.5}}}
+$('budget').addEventListener('input',capBudget);$('settle').addEventListener('click',()=>entities.forEach(e=>{e.vx*=.15;e.vy*=.15;e.heat=0}));$('reset').addEventListener('click',()=>seed(Math.min(18,num('budget'))));$('clearC').addEventListener('click',()=>cascades.length=0);$('clearM').addEventListener('click',()=>moats.length=0);$('invertM').addEventListener('click',()=>moatSign*=-1);$('pulse').addEventListener('click',()=>cascades.forEach(q=>q.pulse=1));
+function canvasPoint(ev){const r=c.getBoundingClientRect();return {x:ev.clientX-r.left,y:ev.clientY-r.top}}
+c.addEventListener('pointerdown',ev=>{const p=canvasPoint(ev);c.setPointerCapture(ev.pointerId);if(mode==='place')place(p.x,p.y);else if(mode==='erase')erase(p.x,p.y);else if(mode==='steer'){const [e,d]=nearest(p.x,p.y);drawing=d<60?{type:'steer',e,last:p}:null}else if(mode==='cascade'){drawing={type:'cascade',pts:[p]}}else if(mode==='moat'){drawing={type:'moat',pts:[p]}}});
+c.addEventListener('pointermove',ev=>{if(!drawing)return;const p=canvasPoint(ev);if(drawing.type==='steer'){const dx=p.x-drawing.last.x,dy=p.y-drawing.last.y;drawing.e.vx+=dx*4;drawing.e.vy+=dy*4;drawing.last=p}else if(drawing.type==='cascade'){const a=drawing.pts[drawing.pts.length-1];if(Math.hypot(p.x-a.x,p.y-a.y)>30&&drawing.pts.length<3)drawing.pts.push(p)}else if(drawing.type==='moat'){const a=drawing.pts[drawing.pts.length-1];if(Math.hypot(p.x-a.x,p.y-a.y)>16&&drawing.pts.length<MAX_MOAT_POINTS)drawing.pts.push(p)}});
+c.addEventListener('pointerup',()=>{if(!drawing)return;if(drawing.type==='cascade'&&drawing.pts.length){while(drawing.pts.length<3)drawing.pts.push({...drawing.pts[drawing.pts.length-1]});cascades.push({pts:drawing.pts.slice(0,3),age:0,life:6+rnd(0,3),pulse:0});if(cascades.length>MAX_CASCADES)cascades.shift()}else if(drawing.type==='moat'&&drawing.pts.length>1){moats.push({pts:drawing.pts.slice(0,MAX_MOAT_POINTS),age:0});if(moats.length>MAX_MOATS)moats.shift()}drawing=null});
+function segNearest(px,py,a,b){const vx=b.x-a.x,vy=b.y-a.y,wx=px-a.x,wy=py-a.y,dd=vx*vx+vy*vy||1;let t=(wx*vx+wy*vy)/dd;t=Math.max(0,Math.min(1,t));const x=a.x+vx*t,y=a.y+vy*t;return {x,y,t,dx:px-x,dy:py-y,d:Math.hypot(px-x,py-y),tx:vx/Math.sqrt(dd),ty:vy/Math.sqrt(dd)}}
+function step(dt){const damping=Math.pow(num('damping'),dt*60),rig=num('rigour'),rad=num('radius'),resp=num('response');
+  // low-count O(n²) field interaction, bounded by budget <=32
+  for(let i=0;i<entities.length;i++){const a=entities[i];let fx=0,fy=0;for(let j=0;j<entities.length;j++){if(i===j)continue;const b=entities[j],dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;if(d2>rad*rad||d2<25)continue;const d=Math.sqrt(d2),q=(1-d/rad);const phase=Math.cos(a.phase-b.phase);const s=(.35+.65*phase)*q*q;fx+=dx/d*s;fy+=dy/d*s;const tx=-dy/d,ty=dx/d;fx+=tx*b.spin*q*.22;fy+=ty*b.spin*q*.22}
+    // gentle recluse governance pulls escaped energy back toward field centroid
+    let cx=0,cy=0;for(const e of entities){cx+=e.x;cy+=e.y}cx/=entities.length||1;cy/=entities.length||1;fx+=(cx-a.x)*.0007*rig;fy+=(cy-a.y)*.0007*rig;
+    // cascades: geometry-only force, no nodes
+    for(const q of cascades){const doctrine=$('doctrine').value,res=num('resonance'),force=num('cascadeForce');let best=null;for(let k=0;k<2;k++){const h=segNearest(a.x,a.y,q.pts[k],q.pts[k+1]);if(!best||h.d<best.d)best=h}if(best&&best.d<180){const age=q.age/q.life;let amp=force*(1-best.d/180);if(doctrine==='recluse')amp*=Math.max(0,1-age)*(.6+res);else if(doctrine==='obtrusion')amp*=age<.72?(.5+res):-(.9+res*1.5);else amp*=Math.max(0,1-age*.7);if(q.pulse>0)amp*=1+q.pulse*2;fx+=(-best.dx/(best.d||1))*amp;fy+=(-best.dy/(best.d||1))*amp}}
+    // bounded moat geometry
+    const mw=num('moatWidth'),mf=num('moatForce')*moatSign,mt=$('moatType').value;for(const m of moats){let best=null;for(let k=0;k<m.pts.length-1;k++){const h=segNearest(a.x,a.y,m.pts[k],m.pts[k+1]);if(!best||h.d<best.d)best=h}if(best&&best.d<mw){const q=(1-best.d/mw)*mf;if(mt==='guide'){fx+=best.tx*q;fy+=best.ty*q}else{const sign=mt==='split'?1:-.38;fx+=(best.dx/(best.d||1))*q*sign;fy+=(best.dy/(best.d||1))*q*sign;if(mt==='soft'){a.vx*=.985;a.vy*=.985}}}}
+    a.vx+=fx*resp*dt*52;a.vy+=fy*resp*dt*52;a.vx*=damping;a.vy*=damping;const sp=Math.hypot(a.vx,a.vy),max=105;if(sp>max){a.vx*=max/sp;a.vy*=max/sp}a.x+=a.vx*dt;a.y+=a.vy*dt;a.phase+=dt*(.4+a.spin*.2);a.heat*=Math.pow(.86,dt*60);if(a.x<12){a.x=12;a.vx=Math.abs(a.vx)*.5}if(a.x>W-12){a.x=W-12;a.vx=-Math.abs(a.vx)*.5}if(a.y<12){a.y=12;a.vy=Math.abs(a.vy)*.5}if(a.y>H-12){a.y=H-12;a.vy=-Math.abs(a.vy)*.5}}
+  for(const q of cascades){q.age+=dt;q.pulse=Math.max(0,q.pulse-dt*1.8)}for(let i=cascades.length-1;i>=0;i--)if(cascades[i].age>cascades[i].life)cascades.splice(i,1);
+}
+function clipPoly(poly,a,b){const mx=(a.x+b.x)/2,my=(a.y+b.y)/2,nx=b.x-a.x,ny=b.y-a.y;const out=[];for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length];const fp=(p.x-mx)*nx+(p.y-my)*ny,fq=(q.x-mx)*nx+(q.y-my)*ny,inp=fp<=0,inq=fq<=0;if(inp)out.push(p);if(inp!==inq){const t=fp/(fp-fq);out.push({x:p.x+(q.x-p.x)*t,y:p.y+(q.y-p.y)*t})}}return out}
+function voronoiCell(i){const a=entities[i];let poly=[{x:0,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H}];for(let j=0;j<entities.length&&poly.length;j++)if(j!==i)poly=clipPoly(poly,a,entities[j]);return poly}
+function draw(){ctx.fillStyle='#070a0f';ctx.fillRect(0,0,W,H);
+  // subtle field lines
+  ctx.globalAlpha=.24;ctx.strokeStyle='rgba(100,160,190,.22)';ctx.lineWidth=1;for(let y=26;y<H;y+=38){ctx.beginPath();for(let x=0;x<W;x+=22){let vx=0,vy=0;for(const e of entities){const dx=e.x-x,dy=e.y-y,d2=dx*dx+dy*dy+500;if(d2>50000)continue;const q=1/d2;vx+=(-dy)*e.spin*q*850;vy+=dx*e.spin*q*850}const yy=y+Math.sin(x*.012+y*.01)*4+vy*5;if(x===0)ctx.moveTo(x,yy);else ctx.lineTo(x,yy)}ctx.stroke()}ctx.globalAlpha=1;
+  // exact low-count Voronoi polygons
+  for(let i=0;i<entities.length;i++){const e=entities[i],poly=voronoiCell(i);if(poly.length<3)continue;const [r,g,b]=e.color;ctx.beginPath();ctx.moveTo(poly[0].x,poly[0].y);for(let k=1;k<poly.length;k++)ctx.lineTo(poly[k].x,poly[k].y);ctx.closePath();ctx.fillStyle=`rgba(${r},${g},${b},0.075)`;ctx.fill();ctx.strokeStyle=`rgba(${r},${g},${b},0.30)`;ctx.lineWidth=1;ctx.stroke()}
+  // moats
+  for(const m of moats){if(m.pts.length<2)continue;ctx.beginPath();ctx.moveTo(m.pts[0].x,m.pts[0].y);for(let i=1;i<m.pts.length;i++)ctx.lineTo(m.pts[i].x,m.pts[i].y);ctx.strokeStyle='rgba(255,108,170,.72)';ctx.lineWidth=Math.max(2,num('moatWidth')*.16);ctx.lineCap='round';ctx.stroke();ctx.strokeStyle='rgba(255,108,170,.18)';ctx.lineWidth=num('moatWidth');ctx.stroke()}
+  // cascades
+  for(const q of cascades){const fade=Math.max(0,1-q.age/q.life);ctx.beginPath();ctx.moveTo(q.pts[0].x,q.pts[0].y);ctx.quadraticCurveTo(q.pts[1].x,q.pts[1].y,q.pts[2].x,q.pts[2].y);ctx.strokeStyle=`rgba(255,200,90,${.25+.65*fade})`;ctx.lineWidth=3+q.pulse*5;ctx.stroke();for(const p of q.pts){ctx.beginPath();ctx.arc(p.x,p.y,4+q.pulse*4,0,Math.PI*2);ctx.fillStyle=`rgba(255,200,90,${.4+.5*fade})`;ctx.fill()}}
+  // particles
+  for(const e of entities){const [r,g,b]=e.color,rr=5+e.mass*2+e.heat*4;ctx.beginPath();ctx.arc(e.x,e.y,rr*2.4,0,Math.PI*2);ctx.fillStyle=`rgba(${r},${g},${b},${.035+.08*e.heat})`;ctx.fill();ctx.beginPath();ctx.arc(e.x,e.y,rr,0,Math.PI*2);ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fill();ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+e.vx*.15,e.y+e.vy*.15);ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=1;ctx.stroke()}
+  if(drawing&&(drawing.type==='moat'||drawing.type==='cascade')){const pts=drawing.pts;ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.strokeStyle=drawing.type==='moat'?'rgba(255,108,170,.8)':'rgba(255,200,90,.8)';ctx.lineWidth=2;ctx.stroke()}
+}
+function hud(dt){let ent=0;for(const e of entities){const s=Math.hypot(e.vx,e.vy);ent+=s*s}ent=entities.length?Math.sqrt(ent/entities.length)/100:0;$('entityHud').textContent=entities.length;$('entropyHud').textContent=ent.toFixed(2);$('cascadeHud').textContent=cascades.length;$('moatHud').textContent=moats.length;$('countPill').textContent=entities.length+' beings';frames++;const now=performance.now();if(now-fpsClock>1000){const fps=Math.round(frames*1000/(now-fpsClock));$('fpsPill').textContent=fps>48?'steady':fps>30?'gentle':'limited';$('fpsPill').className='pill '+(fps>30?'good':'warn');frames=0;fpsClock=now}}
+function loop(now){const dt=Math.min(.04,(now-last)/1000);last=now;acc+=dt;const fixed=1/60;let n=0;while(acc>=fixed&&n<2){step(fixed);acc-=fixed;n++}if(acc>.1)acc=0;draw();hud(dt);requestAnimationFrame(loop)}requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
