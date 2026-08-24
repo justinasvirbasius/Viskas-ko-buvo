@@ -1,0 +1,849 @@
+<div id="vcf-root" style="background-color:light-dark(#f7f8fa,#090b10);color:light-dark(#161922,#eef1f7);width:100%;border-radius:0;padding:18px;box-sizing:border-box;font-family:ui-sans-serif,system-ui,sans-serif">
+  <style>
+    #vcf-root *{box-sizing:border-box}
+    #vcf-root .grid{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 240px;
+      gap:14px
+    }
+    #vcf-root canvas{
+      display:block;
+      width:100%;
+      height:auto;
+      aspect-ratio:16/9;
+      background:#05070b;
+      border:1px solid light-dark(#d8dbe2,#252a34);
+      border-radius:14px;
+      touch-action:none
+    }
+    #vcf-root .panel{
+      background:light-dark(#fff,#11151d);
+      border:1px solid light-dark(#dfe2e8,#292f3a);
+      border-radius:14px;
+      padding:13px
+    }
+    #vcf-root .row{
+      display:grid;
+      grid-template-columns:1fr auto;
+      align-items:center;
+      gap:8px;
+      margin:10px 0
+    }
+    #vcf-root label{font-size:13px}
+    #vcf-root input[type=range]{
+      width:100%;
+      min-height:34px
+    }
+    #vcf-root button{
+      min-height:44px;
+      border-radius:10px;
+      border:1px solid light-dark(#cfd3db,#353d49);
+      background:light-dark(#f3f4f7,#1b212b);
+      color:inherit;
+      padding:8px 11px;
+      cursor:pointer
+    }
+    #vcf-root .buttons{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:12px
+    }
+    #vcf-root .stat{
+      font:12px ui-monospace,SFMono-Regular,monospace;
+      color:light-dark(#555c69,#aeb7c6);
+      margin-top:10px;
+      line-height:1.55
+    }
+    #vcf-root .hint{
+      font-size:12px;
+      color:light-dark(#626977,#a8b0bd);
+      margin:0 0 10px
+    }
+
+    @media(max-width:680px){
+      #vcf-root{padding:10px}
+      #vcf-root .grid{grid-template-columns:1fr}
+      #vcf-root .panel{padding:10px}
+    }
+  </style>
+
+  <p class="hint">
+    Tap or drag through the field to inject a deep convoy.
+    Seeds travel as packets, pull toward neighbours, form temporary
+    Voronoi basins, then fade through an annulment moat rather than
+    being deleted abruptly.
+  </p>
+
+  <div class="grid">
+    <canvas
+      id="vcf-canvas"
+      width="960"
+      height="540"
+      aria-label="Animated Voronoi cascade field">
+    </canvas>
+
+    <section class="panel">
+      <div class="row">
+        <label for="spawn">Cascade density</label>
+        <span id="spawnV">7</span>
+      </div>
+      <input id="spawn" type="range" min="1" max="18" value="7">
+
+      <div class="row">
+        <label for="pull">Coalescence pull</label>
+        <span id="pullV">0.42</span>
+      </div>
+      <input id="pull" type="range" min="0" max="100" value="42">
+
+      <div class="row">
+        <label for="fade">Annulment depth</label>
+        <span id="fadeV">0.74</span>
+      </div>
+      <input id="fade" type="range" min="20" max="98" value="74">
+
+      <div class="row">
+        <label for="spread">Convoy spread</label>
+        <span id="spreadV">22</span>
+      </div>
+      <input id="spread" type="range" min="4" max="60" value="22">
+
+      <div class="buttons">
+        <button id="pulse" type="button">Cascade pulse</button>
+        <button id="pause" type="button">Pause</button>
+        <button id="clear" type="button">Clear</button>
+        <button id="mode" type="button">Mode: fountain</button>
+      </div>
+
+      <div class="stat" id="stats"></div>
+    </section>
+  </div>
+
+  <script>
+  (() => {
+    const root = document.getElementById("vcf-root");
+    if (root.dataset.ready) return;
+    root.dataset.ready = "1";
+
+    const canvas = root.querySelector("#vcf-canvas");
+    const ctx = canvas.getContext("2d");
+
+    const spawn = root.querySelector("#spawn");
+    const pull = root.querySelector("#pull");
+    const fade = root.querySelector("#fade");
+    const spread = root.querySelector("#spread");
+
+    const spawnV = root.querySelector("#spawnV");
+    const pullV = root.querySelector("#pullV");
+    const fadeV = root.querySelector("#fadeV");
+    const spreadV = root.querySelector("#spreadV");
+
+    const stats = root.querySelector("#stats");
+    const pauseButton = root.querySelector("#pause");
+    const modeButton = root.querySelector("#mode");
+
+    let seeds = [];
+    let running = true;
+    let last = performance.now();
+    let mode = 0;
+    let frame = 0;
+
+    /*
+      Hard population ceiling.
+
+      This is one of the main anti-crash mechanisms:
+      cascades are allowed to overlap, but allocation itself
+      cannot grow without bound.
+    */
+    const MAX_SEEDS = 180;
+
+    function syncControls() {
+      spawnV.textContent = spawn.value;
+      pullV.textContent = (+pull.value / 100).toFixed(2);
+      fadeV.textContent = (+fade.value / 100).toFixed(2);
+      spreadV.textContent = spread.value;
+    }
+
+    [spawn, pull, fade, spread].forEach(control => {
+      control.addEventListener("input", syncControls);
+    });
+
+    syncControls();
+
+    function addCascade(
+      x = canvas.width * 0.5,
+      y = canvas.height * 0.54,
+      count = +spawn.value
+    ) {
+      const available = Math.max(0, MAX_SEEDS - seeds.length);
+      count = Math.min(count, available);
+
+      const radius = +spread.value;
+
+      for (let i = 0; i < count; i++) {
+        const angle =
+          (i / Math.max(1, count)) * Math.PI * 2 +
+          (Math.random() - 0.5) * 0.45;
+
+        const distance = Math.random() * radius;
+
+        let outward;
+
+        if (mode === 0) {
+          outward = 0.75; // fountain
+        } else if (mode === 1) {
+          outward = 1.25; // convoy
+        } else {
+          outward = 0.45; // moat
+        }
+
+        seeds.push({
+          x: x + Math.cos(angle) * distance,
+          y: y + Math.sin(angle) * distance,
+
+          vx:
+            Math.cos(angle) * outward +
+            (Math.random() - 0.5) * 0.4,
+
+          vy:
+            Math.sin(angle) * outward +
+            (Math.random() - 0.5) * 0.4 -
+            0.25,
+
+          life: 1,
+          age: 0,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    }
+
+    function pointerPosition(event) {
+      const rect = canvas.getBoundingClientRect();
+
+      return {
+        x:
+          (event.clientX - rect.left) *
+          canvas.width /
+          rect.width,
+
+        y:
+          (event.clientY - rect.top) *
+          canvas.height /
+          rect.height
+      };
+    }
+
+    let dragging = false;
+
+    canvas.addEventListener("pointerdown", event => {
+      dragging = true;
+      canvas.setPointerCapture(event.pointerId);
+
+      const p = pointerPosition(event);
+
+      addCascade(
+        p.x,
+        p.y,
+        +spawn.value
+      );
+    });
+
+    canvas.addEventListener("pointermove", event => {
+      if (!dragging) return;
+
+      /*
+        Throttled trail injection prevents pointer movement
+        from producing thousands of particles per second.
+      */
+      if (frame % 3 !== 0) return;
+
+      const p = pointerPosition(event);
+
+      addCascade(
+        p.x,
+        p.y,
+        Math.max(
+          1,
+          Math.floor(+spawn.value / 3)
+        )
+      );
+    });
+
+    canvas.addEventListener("pointerup", () => {
+      dragging = false;
+    });
+
+    canvas.addEventListener("pointercancel", () => {
+      dragging = false;
+    });
+
+    root.querySelector("#pulse").addEventListener("click", () => {
+      addCascade(
+        canvas.width * 0.5,
+        canvas.height * 0.54,
+        +spawn.value * 3
+      );
+    });
+
+    root.querySelector("#clear").addEventListener("click", () => {
+      seeds = [];
+    });
+
+    pauseButton.addEventListener("click", () => {
+      running = !running;
+
+      pauseButton.textContent =
+        running ? "Pause" : "Resume";
+
+      if (running) {
+        last = performance.now();
+        requestAnimationFrame(loop);
+      }
+    });
+
+    modeButton.addEventListener("click", () => {
+      mode = (mode + 1) % 3;
+
+      modeButton.textContent =
+        "Mode: " +
+        [
+          "fountain",
+          "convoy",
+          "moat"
+        ][mode];
+    });
+
+    function step(dt) {
+      const pullStrength =
+        (+pull.value / 100) * 0.012;
+
+      /*
+        High annulment depth = slower death.
+
+        Death is continuous instead of binary, which prevents
+        the field from visibly snapping or disappearing.
+      */
+      const decay =
+        0.0016 +
+        (1 - (+fade.value / 100)) * 0.0042;
+
+      for (let i = 0; i < seeds.length; i++) {
+        const a = seeds[i];
+
+        let ax = 0;
+        let ay = 0;
+        let neighbours = 0;
+
+        /*
+          Local coalescence.
+
+          Only particles inside a limited neighbourhood influence
+          one another. This gives the field a convoy-like structure
+          rather than one huge global gravitational collapse.
+        */
+        for (let j = 0; j < seeds.length; j++) {
+          if (i === j) continue;
+
+          const b = seeds[j];
+
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+
+          const distanceSquared =
+            dx * dx +
+            dy * dy;
+
+          if (
+            distanceSquared < 9000 &&
+            distanceSquared > 9
+          ) {
+            const distance =
+              Math.sqrt(distanceSquared);
+
+            const influence =
+              1 - distance / 95;
+
+            ax +=
+              (dx / distance) *
+              influence;
+
+            ay +=
+              (dy / distance) *
+              influence;
+
+            neighbours++;
+          }
+        }
+
+        if (neighbours > 0) {
+          a.vx +=
+            (ax / neighbours) *
+            pullStrength *
+            dt;
+
+          a.vy +=
+            (ay / neighbours) *
+            pullStrength *
+            dt;
+        }
+
+        /*
+          Three field personalities.
+        */
+
+        if (mode === 0) {
+          // Fountain lift.
+          a.vy -= 0.0008 * dt;
+        }
+
+        else if (mode === 1) {
+          // Convoy oscillation.
+          a.vx +=
+            Math.sin(
+              a.phase +
+              a.age * 0.01
+            ) *
+            0.0007 *
+            dt;
+        }
+
+        else {
+          /*
+            Moat mode pushes material radially away
+            from the field centre before annulment.
+          */
+          const dx =
+            a.x -
+            canvas.width / 2;
+
+          const dy =
+            a.y -
+            canvas.height / 2;
+
+          const distance =
+            Math.max(
+              1,
+              Math.hypot(dx, dy)
+            );
+
+          a.vx +=
+            dx / distance *
+            0.0008 *
+            dt;
+
+          a.vy +=
+            dy / distance *
+            0.0008 *
+            dt;
+        }
+
+        /*
+          Stable drag.
+
+          Using exponential damping keeps behaviour
+          reasonably similar at variable framerates.
+        */
+        const damping =
+          Math.pow(
+            0.994,
+            dt / 16.7
+          );
+
+        a.vx *= damping;
+        a.vy *= damping;
+
+        a.x +=
+          a.vx *
+          dt *
+          0.055;
+
+        a.y +=
+          a.vy *
+          dt *
+          0.055;
+
+        a.age += dt;
+
+        /*
+          Annulment.
+
+          A particle does not vanish immediately.
+          Its field contribution progressively approaches zero.
+        */
+        a.life -=
+          decay *
+          dt /
+          16.7;
+
+        /*
+          Edge moat.
+
+          Objects entering the outer field fade
+          faster instead of reflecting or accumulating.
+        */
+        const edgeDistance =
+          Math.min(
+            a.x,
+            a.y,
+            canvas.width - a.x,
+            canvas.height - a.y
+          );
+
+        if (edgeDistance < 35) {
+          a.life -=
+            0.012 *
+            (35 - edgeDistance) /
+            35;
+        }
+      }
+
+      /*
+        Actual removal happens only after the visual/physical
+        contribution has already approached zero.
+      */
+      seeds = seeds.filter(seed =>
+        seed.life > 0.015 &&
+        seed.age < 14000 &&
+        seed.x > -80 &&
+        seed.x < canvas.width + 80 &&
+        seed.y > -80 &&
+        seed.y < canvas.height + 80
+      );
+    }
+
+    /*
+      Reusable low-resolution field buffer.
+
+      Voronoi distance evaluation is deliberately performed
+      below display resolution because the brute-force field is:
+
+            gridPixels × seedCount
+
+      and is substantially more expensive than updating particles.
+    */
+    const FIELD_WIDTH = 120;
+    const FIELD_HEIGHT = 68;
+
+    const fieldCanvas =
+      document.createElement("canvas");
+
+    fieldCanvas.width = FIELD_WIDTH;
+    fieldCanvas.height = FIELD_HEIGHT;
+
+    const fieldContext =
+      fieldCanvas.getContext("2d");
+
+    function renderVoronoi() {
+      const scaleX =
+        canvas.width /
+        FIELD_WIDTH;
+
+      const scaleY =
+        canvas.height /
+        FIELD_HEIGHT;
+
+      const image =
+        fieldContext.createImageData(
+          FIELD_WIDTH,
+          FIELD_HEIGHT
+        );
+
+      const pixels = image.data;
+
+      for (
+        let gy = 0;
+        gy < FIELD_HEIGHT;
+        gy++
+      ) {
+        for (
+          let gx = 0;
+          gx < FIELD_WIDTH;
+          gx++
+        ) {
+          let nearest = Infinity;
+          let secondNearest = Infinity;
+          let nearestLife = 0;
+
+          const px =
+            gx *
+            scaleX;
+
+          const py =
+            gy *
+            scaleY;
+
+          for (const seed of seeds) {
+            const dx =
+              px -
+              seed.x;
+
+            const dy =
+              py -
+              seed.y;
+
+            const distanceSquared =
+              dx * dx +
+              dy * dy;
+
+            if (
+              distanceSquared <
+              nearest
+            ) {
+              secondNearest =
+                nearest;
+
+              nearest =
+                distanceSquared;
+
+              nearestLife =
+                seed.life;
+            }
+
+            else if (
+              distanceSquared <
+              secondNearest
+            ) {
+              secondNearest =
+                distanceSquared;
+            }
+          }
+
+          let boundary = 0;
+          let basin = 0;
+
+          if (seeds.length) {
+            const d1 =
+              Math.sqrt(nearest);
+
+            const d2 =
+              Math.sqrt(secondNearest);
+
+            /*
+              Voronoi border emerges when the nearest
+              and second-nearest distances approach equality.
+            */
+            boundary =
+              Math.max(
+                0,
+                1 -
+                Math.abs(d2 - d1) /
+                18
+              );
+
+            /*
+              Interior field around each site.
+            */
+            basin =
+              Math.exp(
+                -nearest /
+                1800
+              );
+          }
+
+          const glow =
+            Math.min(
+              1,
+              boundary * 0.8 +
+              basin * 0.55
+            ) *
+            nearestLife;
+
+          const index =
+            (gy * FIELD_WIDTH + gx) * 4;
+
+          pixels[index] =
+            24 +
+            glow * 105;
+
+          pixels[index + 1] =
+            34 +
+            glow * 135;
+
+          pixels[index + 2] =
+            48 +
+            glow * 180;
+
+          pixels[index + 3] =
+            Math.min(
+              210,
+              glow * 230
+            );
+        }
+      }
+
+      fieldContext.putImageData(
+        image,
+        0,
+        0
+      );
+
+      ctx.imageSmoothingEnabled = true;
+
+      ctx.drawImage(
+        fieldCanvas,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+    }
+
+    function renderParticles() {
+      ctx.globalCompositeOperation =
+        "lighter";
+
+      for (const seed of seeds) {
+        /*
+          Radius grows slightly as the particle dies,
+          making annulment appear like a dissolving moat.
+        */
+        const radius =
+          3 +
+          10 *
+          (1 - seed.life);
+
+        const gradient =
+          ctx.createRadialGradient(
+            seed.x,
+            seed.y,
+            0,
+
+            seed.x,
+            seed.y,
+            radius * 3
+          );
+
+        gradient.addColorStop(
+          0,
+          `rgba(
+            220,
+            235,
+            255,
+            ${Math.min(0.8, seed.life)}
+          )`
+        );
+
+        gradient.addColorStop(
+          0.25,
+          `rgba(
+            110,
+            175,
+            230,
+            ${seed.life * 0.35}
+          )`
+        );
+
+        gradient.addColorStop(
+          1,
+          "rgba(30,50,80,0)"
+        );
+
+        ctx.fillStyle = gradient;
+
+        ctx.beginPath();
+
+        ctx.arc(
+          seed.x,
+          seed.y,
+          radius * 3,
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fill();
+      }
+
+      ctx.globalCompositeOperation =
+        "source-over";
+    }
+
+    function render() {
+      /*
+        Transparent clearing creates temporal trails.
+        Increasing alpha makes the field cleaner;
+        reducing it makes long cascade memory.
+      */
+      ctx.fillStyle =
+        "rgba(4,7,12,0.20)";
+
+      ctx.fillRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      renderVoronoi();
+      renderParticles();
+    }
+
+    function loop(time) {
+      if (!running) return;
+
+      /*
+        Simulation spike clamp.
+
+        If the browser stalls for a moment, we do not feed
+        the entire missing duration into physics at once.
+      */
+      const dt =
+        Math.min(
+          34,
+          time - last || 16.7
+        );
+
+      last = time;
+      frame++;
+
+      /*
+        Controlled autonomous spawning.
+
+        We don't spawn if the field is already approaching
+        its population ceiling.
+      */
+      if (
+        frame % 30 === 0 &&
+        seeds.length <
+        MAX_SEEDS * 0.75
+      ) {
+        addCascade(
+          canvas.width * 0.5 +
+          (Math.random() - 0.5) * 90,
+
+          canvas.height * 0.58 +
+          (Math.random() - 0.5) * 35,
+
+          Math.max(
+            1,
+            Math.floor(
+              +spawn.value / 2
+            )
+          )
+        );
+      }
+
+      step(dt);
+      render();
+
+      stats.textContent =
+        `active seeds ${seeds.length}/${MAX_SEEDS}\n` +
+        `frame clamp ${dt.toFixed(1)} ms\n` +
+        `annulment: smooth decay\n` +
+        `allocation: bounded`;
+
+      requestAnimationFrame(loop);
+    }
+
+    /*
+      Initial deep spawn.
+    */
+    addCascade(
+      canvas.width * 0.5,
+      canvas.height * 0.55,
+      30
+    );
+
+    requestAnimationFrame(loop);
+  })();
+  </script>
+</div>
