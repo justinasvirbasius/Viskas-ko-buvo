@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Many-Multiples Voronoi Cascade</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#05070b;color:#eaf2ff;font-family:Inter,system-ui,sans-serif}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .panel{
+    position:fixed;left:12px;top:12px;width:min(330px,calc(100vw - 24px));
+    padding:12px 14px;border:1px solid rgba(255,255,255,.12);
+    border-radius:14px;background:rgba(8,12,20,.72);backdrop-filter:blur(10px);
+    box-shadow:0 12px 40px rgba(0,0,0,.35);font-size:13px
+  }
+  .row{display:grid;grid-template-columns:120px 1fr 48px;gap:8px;align-items:center;margin:7px 0}
+  input[type=range]{width:100%}
+  .buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  button{
+    border:1px solid rgba(255,255,255,.16);background:#121b2b;color:#eef5ff;
+    border-radius:10px;padding:7px 10px;font-weight:650
+  }
+  button:active{transform:translateY(1px)}
+  .hint{opacity:.7;line-height:1.35;margin-top:8px}
+  .title{font-weight:800;font-size:15px;margin-bottom:2px}
+  .stat{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="panel">
+  <div class="title">Many-Multiples Voronoi Cascade</div>
+  <div class="hint">Macro cells → many families per cell → many clusters per family → particles.</div>
+
+  <div class="row"><label>Macro seeds</label><input id="macro" type="range" min="3" max="18" value="7"><span id="macroV"></span></div>
+  <div class="row"><label>Families / cell</label><input id="families" type="range" min="2" max="14" value="6"><span id="familiesV"></span></div>
+  <div class="row"><label>Clusters / family</label><input id="clusters" type="range" min="2" max="10" value="4"><span id="clustersV"></span></div>
+  <div class="row"><label>Particles / cluster</label><input id="ppc" type="range" min="2" max="18" value="7"><span id="ppcV"></span></div>
+  <div class="row"><label>Cascade pull</label><input id="pull" type="range" min="0" max="100" value="38"><span id="pullV"></span></div>
+  <div class="row"><label>Family swirl</label><input id="swirl" type="range" min="0" max="100" value="52"><span id="swirlV"></span></div>
+  <div class="row"><label>Noise</label><input id="noise" type="range" min="0" max="100" value="23"><span id="noiseV"></span></div>
+
+  <div class="buttons">
+    <button id="regen">Regenerate</button>
+    <button id="pause">Pause</button>
+    <button id="burst">Burst</button>
+  </div>
+  <div class="hint stat" id="stats"></div>
+  <div class="hint">Drag anywhere to bend the cascade. Double-tap/click to inject a local pulse.</div>
+</div>
+
+<script>
+(() => {
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha:false });
+let W=0,H=0,DPR=1, paused=false, t=0, last=performance.now();
+
+const ui = {};
+for (const id of ['macro','families','clusters','ppc','pull','swirl','noise']) {
+  ui[id] = document.getElementById(id);
+  const out = document.getElementById(id+'V');
+  const update = () => out.textContent = ui[id].value;
+  ui[id].addEventListener('input', update); update();
+}
+const stats = document.getElementById('stats');
+
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=(a=1,b=0)=>b+Math.random()*(a-b);
+
+let macros=[], families=[], clusters=[], particles=[];
+let pointer={x:0,y:0,down:false,px:0,py:0,vx:0,vy:0};
+let pulses=[];
+
+function resize(){
+  DPR=Math.min(2,devicePixelRatio||1);
+  W=innerWidth; H=innerHeight;
+  canvas.width=W*DPR; canvas.height=H*DPR;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize',resize); resize();
+
+function nearestMacro(x,y){
+  let bi=0,bd=Infinity;
+  for(let i=0;i<macros.length;i++){
+    const m=macros[i], dx=x-m.x,dy=y-m.y,d=dx*dx+dy*dy;
+    if(d<bd){bd=d;bi=i}
+  }
+  return bi;
+}
+
+function build(){
+  macros=[];families=[];clusters=[];particles=[];pulses=[];
+  const M=+ui.macro.value, F=+ui.families.value, C=+ui.clusters.value, P=+ui.ppc.value;
+  const margin=Math.min(W,H)*.08;
+
+  for(let i=0;i<M;i++){
+    macros.push({
+      x:rnd(W-margin,margin), y:rnd(H-margin,margin),
+      vx:rnd(.15,-.15), vy:rnd(.15,-.15),
+      phase:rnd(Math.PI*2,0),
+      weight:rnd(1.45,.7)
+    });
+  }
+
+  for(let mi=0;mi<M;mi++){
+    const m=macros[mi];
+    for(let fi=0;fi<F;fi++){
+      const a=(fi/F)*Math.PI*2+rnd(.35,-.35);
+      const r=rnd(Math.min(W,H)*.16,Math.min(W,H)*.035);
+      const f={
+        macro:mi,
+        x:m.x+Math.cos(a)*r, y:m.y+Math.sin(a)*r,
+        ox:Math.cos(a)*r, oy:Math.sin(a)*r,
+        phase:rnd(Math.PI*2,0),
+        spin:rnd(1.0,-1.0)
+      };
+      const fidx=families.push(f)-1;
+
+      for(let ci=0;ci<C;ci++){
+        const ca=(ci/C)*Math.PI*2+rnd(.7,-.7);
+        const cr=rnd(56,14);
+        const c={
+          family:fidx,
+          x:f.x+Math.cos(ca)*cr, y:f.y+Math.sin(ca)*cr,
+          ox:Math.cos(ca)*cr, oy:Math.sin(ca)*cr,
+          phase:rnd(Math.PI*2,0)
+        };
+        const cidx=clusters.push(c)-1;
+
+        for(let pi=0;pi<P;pi++){
+          const pa=rnd(Math.PI*2,0), pr=Math.sqrt(Math.random())*18;
+          particles.push({
+            cluster:cidx,
+            x:c.x+Math.cos(pa)*pr,y:c.y+Math.sin(pa)*pr,
+            vx:rnd(.5,-.5),vy:rnd(.5,-.5),
+            size:rnd(2.7,.8), life:rnd(1,.3),
+            phase:rnd(Math.PI*2,0)
+          });
+        }
+      }
+    }
+  }
+}
+
+function pulse(x,y,amp=1){
+  pulses.push({x,y,r:8,a:amp});
+  if(pulses.length>12)pulses.shift();
+}
+
+function update(dt){
+  t+=dt;
+  const pull=+ui.pull.value/100;
+  const swirl=+ui.swirl.value/100;
+  const noise=+ui.noise.value/100;
+  const scale=Math.min(W,H);
+
+  for(const m of macros){
+    m.x += m.vx*dt*20; m.y += m.vy*dt*20;
+    if(m.x<40||m.x>W-40)m.vx*=-1;
+    if(m.y<40||m.y>H-40)m.vy*=-1;
+  }
+
+  for(const f of families){
+    const m=macros[f.macro];
+    const cs=Math.cos(t*.00022+f.phase), sn=Math.sin(t*.00022+f.phase);
+    const rx=f.ox*cs-f.oy*sn, ry=f.ox*sn+f.oy*cs;
+    const targetX=m.x+rx, targetY=m.y+ry;
+    f.x=lerp(f.x,targetX,.012+.05*pull);
+    f.y=lerp(f.y,targetY,.012+.05*pull);
+  }
+
+  for(const c of clusters){
+    const f=families[c.family];
+    const a=t*.00055*f.spin + c.phase;
+    const ca=Math.cos(a), sa=Math.sin(a);
+    const tx=f.x + c.ox*ca - c.oy*sa;
+    const ty=f.y + c.ox*sa + c.oy*ca;
+    c.x=lerp(c.x,tx,.025+.05*pull);
+    c.y=lerp(c.y,ty,.025+.05*pull);
+  }
+
+  for(const p of particles){
+    const c=clusters[p.cluster], f=families[c.family], m=macros[f.macro];
+    let ax=(c.x-p.x)*(.0008+.0045*pull);
+    let ay=(c.y-p.y)*(.0008+.0045*pull);
+
+    // Family-scale swirl.
+    let dx=p.x-f.x, dy=p.y-f.y;
+    const inv=1/Math.max(28,Math.hypot(dx,dy));
+    ax += -dy*inv*.035*swirl*f.spin;
+    ay +=  dx*inv*.035*swirl*f.spin;
+
+    // Macro Voronoi ownership pressure: particles are softly repelled from rival macro basins.
+    let bestD=Infinity, secondD=Infinity, owner=-1;
+    for(let i=0;i<macros.length;i++){
+      const mm=macros[i], qx=p.x-mm.x,qy=p.y-mm.y, d=qx*qx+qy*qy;
+      if(d<bestD){secondD=bestD;bestD=d;owner=i}else if(d<secondD)secondD=d;
+    }
+    if(owner!==f.macro){
+      ax+=(m.x-p.x)*.0009;
+      ay+=(m.y-p.y)*.0009;
+    } else {
+      const edge=Math.sqrt(secondD)-Math.sqrt(bestD);
+      if(edge<scale*.08){
+        ax+=(m.x-p.x)*.00016;
+        ay+=(m.y-p.y)*.00016;
+      }
+    }
+
+    // Pointer bends the whole field locally.
+    if(pointer.down){
+      dx=p.x-pointer.x;dy=p.y-pointer.y;
+      const d2=dx*dx+dy*dy+500;
+      const q=Math.min(1,50000/d2);
+      ax += pointer.vx*.0018*q - dx/d2*15*q;
+      ay += pointer.vy*.0018*q - dy/d2*15*q;
+    }
+
+    // Expanding pulse rings.
+    for(const q of pulses){
+      dx=p.x-q.x;dy=p.y-q.y;
+      const d=Math.hypot(dx,dy)||1;
+      const ring=Math.exp(-Math.pow((d-q.r)/32,2))*q.a;
+      ax += dx/d*.08*ring;
+      ay += dy/d*.08*ring;
+    }
+
+    ax += Math.sin(t*.002+p.phase+p.y*.015)*.012*noise;
+    ay += Math.cos(t*.0017+p.phase+p.x*.014)*.012*noise;
+
+    p.vx=(p.vx+ax*dt)*.982;
+    p.vy=(p.vy+ay*dt)*.982;
+    p.x+=p.vx*dt*.06;
+    p.y+=p.vy*dt*.06;
+
+    if(p.x<-30)p.x=W+30;if(p.x>W+30)p.x=-30;
+    if(p.y<-30)p.y=H+30;if(p.y>H+30)p.y=-30;
+  }
+
+  for(const q of pulses){q.r+=dt*.22;q.a*=Math.pow(.992,dt)}
+  pulses=pulses.filter(q=>q.a>.03 && q.r<Math.max(W,H)*1.3);
+}
+
+function draw(){
+  ctx.fillStyle='#05070b';ctx.fillRect(0,0,W,H);
+
+  // Large-field density background sampled on a grid.
+  const step=28;
+  for(let y=0;y<H;y+=step){
+    for(let x=0;x<W;x+=step){
+      let bi=0,bd=Infinity,sd=Infinity;
+      for(let i=0;i<macros.length;i++){
+        const m=macros[i],dx=x-m.x,dy=y-m.y,d=(dx*dx+dy*dy)/m.weight;
+        if(d<bd){sd=bd;bd=d;bi=i}else if(d<sd)sd=d;
+      }
+      const edge=clamp((Math.sqrt(sd)-Math.sqrt(bd))/55,0,1);
+      const hue=(bi*67 + 190 + Math.sin(t*.0002+bi)*25)%360;
+      ctx.fillStyle=`hsla(${hue},70%,${11+edge*4}%,.42)`;
+      ctx.fillRect(x,y,step+1,step+1);
+    }
+  }
+
+  // Family/cluster connective cascade.
+  ctx.lineWidth=.8;
+  for(const c of clusters){
+    const f=families[c.family];
+    const hue=(f.macro*67+190)%360;
+    ctx.strokeStyle=`hsla(${hue},85%,70%,.11)`;
+    ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.lineTo(c.x,c.y);ctx.stroke();
+  }
+
+  // Family centers.
+  for(const f of families){
+    const hue=(f.macro*67+190)%360;
+    ctx.fillStyle=`hsla(${hue},90%,72%,.55)`;
+    ctx.beginPath();ctx.arc(f.x,f.y,2.2,0,Math.PI*2);ctx.fill();
+  }
+
+  // Particles.
+  for(const p of particles){
+    const c=clusters[p.cluster], f=families[c.family];
+    const hue=(f.macro*67 + 190 + c.phase*18)%360;
+    ctx.fillStyle=`hsla(${hue},92%,72%,${.36+p.life*.5})`;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+  }
+
+  // Macro anchors.
+  for(let i=0;i<macros.length;i++){
+    const m=macros[i], hue=(i*67+190)%360;
+    ctx.strokeStyle=`hsla(${hue},95%,75%,.75)`;
+    ctx.lineWidth=1.3;
+    ctx.beginPath();ctx.arc(m.x,m.y,8+Math.sin(t*.002+m.phase)*2,0,Math.PI*2);ctx.stroke();
+  }
+
+  for(const q of pulses){
+    ctx.strokeStyle=`rgba(230,245,255,${q.a*.35})`;
+    ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,Math.PI*2);ctx.stroke();
+  }
+
+  stats.textContent =
+    `${macros.length} macro × ${ui.families.value} families × ${ui.clusters.value} clusters × ${ui.ppc.value} particles = ${particles.length.toLocaleString()} particles`;
+}
+
+function frame(now){
+  const dt=Math.min(32,now-last);last=now;
+  if(!paused) update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function pointerPos(e){
+  const r=canvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left),y:(e.clientY-r.top)};
+}
+canvas.addEventListener('pointerdown',e=>{
+  const p=pointerPos(e);pointer.x=pointer.px=p.x;pointer.y=pointer.py=p.y;pointer.down=true;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove',e=>{
+  const p=pointerPos(e);
+  pointer.vx=p.x-pointer.px;pointer.vy=p.y-pointer.py;
+  pointer.px=pointer.x=p.x;pointer.py=pointer.y=p.y;
+});
+canvas.addEventListener('pointerup',()=>pointer.down=false);
+canvas.addEventListener('pointercancel',()=>pointer.down=false);
+canvas.addEventListener('dblclick',e=>{const p=pointerPos(e);pulse(p.x,p.y,1.5)});
+
+let lastTap=0;
+canvas.addEventListener('touchend',e=>{
+  const now=performance.now();
+  if(now-lastTap<320){
+    const touch=e.changedTouches[0], r=canvas.getBoundingClientRect();
+    pulse(touch.clientX-r.left,touch.clientY-r.top,1.5);
+  }
+  lastTap=now;
+},{passive:true});
+
+document.getElementById('regen').onclick=build;
+document.getElementById('pause').onclick=e=>{
+  paused=!paused;e.target.textContent=paused?'Resume':'Pause';
+};
+document.getElementById('burst').onclick=()=>{
+  for(let i=0;i<6;i++)pulse(rnd(W,0),rnd(H,0),rnd(1.4,.6));
+};
+for(const id of ['macro','families','clusters','ppc'])
+  ui[id].addEventListener('change',build);
+
+build();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
