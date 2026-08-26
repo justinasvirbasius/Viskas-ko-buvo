@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Entropy OS Build Console</title>
+<style>
+  :root{
+    --bg:#0b0e14;
+    --panel:#121722;
+    --panel2:#0f141d;
+    --text:#e7edf6;
+    --muted:#8c98aa;
+    --line:#273042;
+    --accent:#7dd3fc;
+    --good:#86efac;
+    --warn:#fde68a;
+    --bad:#fda4af;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:linear-gradient(180deg,#090c12,#0d1119 55%,#090c12);
+    color:var(--text);
+    font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  button,input,select{font:inherit}
+  header{
+    position:sticky;top:0;z-index:20;
+    display:flex;align-items:center;gap:14px;justify-content:space-between;
+    padding:14px 18px;border-bottom:1px solid var(--line);
+    background:rgba(11,14,20,.92);backdrop-filter:blur(12px)
+  }
+  .brand{display:flex;align-items:center;gap:10px}
+  .mark{
+    width:30px;height:30px;border:1px solid #3b475f;border-radius:9px;
+    display:grid;place-items:center;background:#111722;color:var(--accent);font-weight:800
+  }
+  .brand b{font-size:15px}
+  .brand small{display:block;color:var(--muted)}
+  .status{display:flex;gap:8px;align-items:center}
+  .pill{
+    border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);
+    background:#0f141d
+  }
+  .pill strong{color:var(--good)}
+  .layout{
+    display:grid;grid-template-columns:280px minmax(0,1fr) 360px;gap:12px;
+    padding:12px;min-height:calc(100vh - 60px)
+  }
+  .panel{
+    border:1px solid var(--line);background:rgba(18,23,34,.88);
+    border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.18)
+  }
+  .panel h2{
+    margin:0;padding:12px 14px;font-size:12px;text-transform:uppercase;letter-spacing:.12em;
+    border-bottom:1px solid var(--line);color:#b7c3d7;background:#10151f
+  }
+  .left{display:flex;flex-direction:column;min-height:0}
+  .search{padding:10px;border-bottom:1px solid var(--line)}
+  .search input{
+    width:100%;background:#0b1018;color:var(--text);border:1px solid var(--line);
+    border-radius:9px;padding:9px 10px;outline:none
+  }
+  .tree{padding:8px;overflow:auto}
+  .node{
+    display:flex;align-items:center;gap:9px;width:100%;
+    background:transparent;color:var(--text);border:0;border-radius:9px;
+    padding:9px 10px;text-align:left;cursor:pointer
+  }
+  .node:hover,.node.active{background:#172030}
+  .dot{width:9px;height:9px;border-radius:50%;background:#4b5567;flex:0 0 auto}
+  .dot.ready{background:var(--good);box-shadow:0 0 12px rgba(134,239,172,.35)}
+  .dot.active{background:var(--accent);box-shadow:0 0 12px rgba(125,211,252,.35)}
+  .node span:last-child{color:#cad5e6}
+  .main{display:flex;flex-direction:column;min-width:0}
+  .hero{
+    padding:16px;border-bottom:1px solid var(--line);
+    display:flex;gap:12px;align-items:flex-start;justify-content:space-between
+  }
+  .hero h1{font-size:20px;margin:0 0 4px}
+  .hero p{margin:0;color:var(--muted)}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    border:1px solid #334155;background:#151d2a;color:var(--text);
+    border-radius:9px;padding:8px 11px;cursor:pointer
+  }
+  .btn:hover{border-color:#4c607e;background:#1a2433}
+  .btn.primary{color:#071019;background:var(--accent);border-color:transparent;font-weight:700}
+  .content{padding:14px;overflow:auto}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+  .card{
+    padding:12px;border:1px solid var(--line);border-radius:11px;background:#0e141d
+  }
+  .card b{display:block;margin-bottom:6px}
+  .metric{font-size:23px;font-weight:800}
+  .muted{color:var(--muted)}
+  .flow{
+    display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin:10px 0 16px
+  }
+  .stage{
+    border:1px solid var(--line);border-radius:10px;padding:10px;background:#0e141d;cursor:pointer
+  }
+  .stage:hover{border-color:#41516a}
+  .stage small{color:var(--muted)}
+  .stage strong{display:block;margin-top:2px}
+  .stage.done{border-color:#315d48;background:#102019}
+  .stage.current{border-color:#2f6d88;background:#0e1d26}
+  pre{
+    margin:0;white-space:pre-wrap;word-break:break-word;
+    font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:#d6e3f4
+  }
+  .manual{
+    border:1px solid var(--line);background:#0a0f16;border-radius:11px;padding:13px
+  }
+  .manual h3{margin:0 0 8px;font-size:15px}
+  .right{display:flex;flex-direction:column;min-height:0}
+  .milestones{padding:10px;overflow:auto;max-height:48vh;border-bottom:1px solid var(--line)}
+  .check{
+    display:flex;gap:9px;align-items:flex-start;padding:7px 5px;border-radius:8px
+  }
+  .check:hover{background:#151d2a}
+  .check input{margin-top:3px}
+  .console{flex:1;display:flex;flex-direction:column;min-height:280px}
+  .consolebar{display:flex;gap:8px;padding:9px;border-bottom:1px solid var(--line)}
+  .consolelog{
+    flex:1;overflow:auto;background:#080c11;padding:11px;
+    font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace
+  }
+  .logline{color:#b8c5d8}
+  .logline .ok{color:var(--good)}
+  .logline .warn{color:var(--warn)}
+  .logline .info{color:var(--accent)}
+  .footer-note{padding:9px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+  @media (max-width:1100px){
+    .layout{grid-template-columns:240px 1fr}
+    .right{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}
+    .milestones{max-height:none;border-bottom:0;border-right:1px solid var(--line)}
+  }
+  @media (max-width:760px){
+    header{align-items:flex-start}
+    .status{display:none}
+    .layout{grid-template-columns:1fr}
+    .left,.right{grid-column:auto}
+    .left{max-height:330px}
+    .right{display:block}
+    .milestones{border-right:0;border-bottom:1px solid var(--line)}
+    .grid,.flow{grid-template-columns:1fr}
+    .hero{display:block}
+    .actions{margin-top:12px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="mark">E</div>
+    <div><b>Entropy OS Build Console</b><small>bottom-up kernel & product manual</small></div>
+  </div>
+  <div class="status">
+    <div class="pill">Generation <strong id="genTop">G0</strong></div>
+    <div class="pill">Milestone <strong id="mileTop">0%</strong></div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="panel left">
+    <h2>Subsystems</h2>
+    <div class="search"><input id="search" placeholder="Filter subsystems..." /></div>
+    <div id="tree" class="tree"></div>
+    <div class="footer-note">Select a subsystem to inspect its contract and initialization role.</div>
+  </aside>
+
+  <main class="panel main">
+    <div class="hero">
+      <div>
+        <h1 id="title">Boot Flow</h1>
+        <p id="subtitle">Firmware handoff, early observability, and controlled initialization.</p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="resetBtn">Reset</button>
+        <button class="btn" id="stepBtn">Step Boot</button>
+        <button class="btn primary" id="runBtn">Run Boot</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="grid">
+        <div class="card"><b>Current generation</b><div class="metric" id="genMetric">G0</div><span class="muted" id="genLabel">Firmware</span></div>
+        <div class="card"><b>Completed checks</b><div class="metric" id="doneMetric">0 / 16</div><span class="muted">interactive milestone tracker</span></div>
+      </div>
+
+      <div class="flow" id="flow"></div>
+
+      <div class="manual">
+        <h3 id="manualTitle">Boot Flow contract</h3>
+        <pre id="manualBody"></pre>
+      </div>
+    </div>
+  </main>
+
+  <aside class="panel right">
+    <section>
+      <h2>Milestone</h2>
+      <div id="milestones" class="milestones"></div>
+    </section>
+    <section class="console">
+      <h2>Boot Log</h2>
+      <div class="consolebar">
+        <button class="btn" id="injectBtn">Inject Warning</button>
+        <button class="btn" id="clearLogBtn">Clear</button>
+      </div>
+      <div id="consolelog" class="consolelog"></div>
+    </section>
+  </aside>
+</div>
+
+<script>
+const subsystems = [
+  {name:"Boot Flow", gen:0, desc:"Firmware handoff, entry discipline, boot parameters, and the first trusted kernel state.",
+   contract:`RESET / UEFI
+  ↓
+kernel entry
+  ↓
+validate boot information
+  ↓
+serial diagnostics
+  ↓
+memory map
+  ↓
+architecture initialization
+
+Rule:
+Never advance a subsystem until its dependencies report an explicit ready state.`},
+  {name:"Serial", gen:1, desc:"Earliest observability and panic-safe diagnostics.",
+   contract:`Serial is initialized before complex hardware.
+
+Responsibilities:
+• early boot logging
+• panic output
+• diagnostic fallback
+• structured generation tags
+
+Keep it independent from heap allocation wherever possible.`},
+  {name:"Allocators", gen:2, desc:"Physical pages, virtual mapping, heap, and DMA-aware ownership.",
+   contract:`UEFI memory map
+  ↓
+physical allocator
+  ↓
+virtual mapper
+  ↓
+kernel heap
+  ↓
+DMA allocator
+
+Invariant:
+A virtual pointer is never silently treated as a device-visible DMA address.`},
+  {name:"IDT / Exceptions", gen:3, desc:"Fault containment, normalized interrupt frames, and deliberate exception policy.",
+   contract:`CPU exception
+  ↓
+assembly stub
+  ↓
+normalized InterruptFrame
+  ↓
+C/C++ dispatcher
+  ↓
+handler policy
+
+Load IDT before STI.
+Use IST for double fault and other critical exceptions.`},
+  {name:"Timers / APIC", gen:4, desc:"LAPIC, IOAPIC routing, monotonic time, and scheduler ticks.",
+   contract:`ACPI MADT
+  ↓
+LAPIC / IOAPIC
+  ↓
+vector allocation
+  ↓
+timer calibration
+  ↓
+per-CPU timer events
+
+Keep physical IRQ routing separate from IDT vector policy.`},
+  {name:"SMP", gen:4, desc:"Application processor bring-up and per-CPU runtime state.",
+   contract:`BSP discovers CPUs
+  ↓
+allocate per-CPU stacks/state
+  ↓
+INIT + SIPI
+  ↓
+AP enters long mode
+  ↓
+local GDT/TSS + LAPIC
+  ↓
+waiting state
+  ↓
+scheduler release`},
+  {name:"PCI / BAR", gen:5, desc:"PCIe discovery, ECAM configuration space, BAR decoding, and resource ownership.",
+   contract:`PCI discovery
+  ↓
+PciFunction object
+  ↓
+BAR decode
+  ↓
+MMIO mapping
+  ↓
+resource claim
+  ↓
+driver match
+
+Discovery does not initialize drivers directly.`},
+  {name:"DMA", gen:5, desc:"Coherent and streaming DMA mappings with future IOMMU compatibility.",
+   contract:`CPU buffer
+  ↓
+DMA mapping
+  ↓
+device address
+  ↓
+descriptor / queue
+  ↓
+completion
+  ↓
+unmap when ownership returns
+
+Design for IOMMU even before enabling one.`},
+  {name:"AHCI / NVMe", gen:6, desc:"Storage controller queues terminating at a common block-device contract.",
+   contract:`PCI storage function
+  ↓
+driver probe
+  ↓
+DMA command structures
+  ↓
+MSI/MSI-X
+  ↓
+BlockDevice
+
+Upper layers must not care whether storage is SATA or NVMe.`},
+  {name:"GPT", gen:6, desc:"Partition discovery, CRC validation, and child block devices.",
+   contract:`BlockDevice
+  ↓
+protective MBR
+  ↓
+GPT header CRC
+  ↓
+partition-entry CRC
+  ↓
+PartitionDevice
+
+Filesystems operate on partitions, never raw offset arithmetic.`},
+  {name:"FAT32 / ext2", gen:7, desc:"Early boot and general-purpose filesystem access through VFS.",
+   contract:`PartitionDevice
+  ↓
+filesystem probe
+  ↓
+mount
+  ↓
+VFS node tree
+  ↓
+open / read / directory traversal
+
+Start ext2 read-only.
+Validate all on-disk sizes and offsets before use.`},
+  {name:"ELF / Modules", gen:7, desc:"Executable validation, relocation, symbol resolution, and kernel module lifecycle.",
+   contract:`open ELF
+  ↓
+verify headers and bounds
+  ↓
+allocate image
+  ↓
+load sections
+  ↓
+resolve symbols
+  ↓
+apply relocations
+  ↓
+set RX/RW permissions
+  ↓
+module_init()`},
+  {name:"Processes / Syscalls", gen:8, desc:"Ring-3 execution, user address spaces, handles, and syscall boundary.",
+   contract:`ELF image
+  ↓
+AddressSpace
+  ↓
+user stack
+  ↓
+Thread
+  ↓
+scheduler
+  ↓
+SYSCALL/SYSRET
+
+Never trust user pointers.
+All kernel objects cross the boundary through handles.`},
+  {name:"Services / IPC", gen:9, desc:"Channels, pipes, service startup graph, and recovery policy.",
+   contract:`kernel mechanisms
+  ↓
+IPC
+  ↓
+init / service manager
+  ↓
+dependency graph
+  ↓
+restart policy
+  ↓
+operational services
+
+Policy belongs in userspace whenever possible.`},
+  {name:"Networking", gen:9, desc:"NIC → Ethernet → IP → TCP/UDP → sockets, DHCP, DNS, routes.",
+   contract:`NIC
+ ↓
+Ethernet
+ ↓
+ARP
+ ↓
+IPv4
+ ├─ ICMP
+ ├─ UDP
+ └─ TCP
+     ↓
+   sockets
+
+Validate packet lengths at every layer boundary.`},
+  {name:"Desktop / Product", gen:10, desc:"Framebuffer, compositor, administration suite, updater, recovery, and installer.",
+   contract:`Display + Input
+   ↓
+window server
+   ↓
+compositor
+   ↓
+desktop shell
+   ↓
+system tools
+   ↓
+package / update / restore
+   ↓
+installer
+
+The product layer consumes stable service APIs instead of reaching into kernel tables.`}
+];
+
+const bootStages = [
+  ["G0","Firmware"],["G1","Serial"],["G2","Memory"],["G3","IDT"],
+  ["G4","SMP/APIC"],["G5","PCI/DMA"],["G6","Storage"],["G7","VFS/ELF"],
+  ["G8","Userspace"],["G9","Services/Net"],["G10","Product"]
+];
+
+const milestoneChecks = [
+  "Serial online","Memory map normalized","Physical allocator online","IDT loaded",
+  "LAPIC timer firing","Application processor online","PCI functions enumerated","DMA buffer operational",
+  "NVMe/AHCI block read","GPT verified","Filesystem mounted","ELF/module loader ready",
+  "Ring-3 process started","Syscall path working","Networking/service layer alive","Desktop/product layer available"
+];
+
+let currentGen = 0;
+let selected = 0;
+let timer = null;
+let checks = JSON.parse(localStorage.getItem("entropyChecks") || "null") || milestoneChecks.map(()=>false);
+
+const tree = document.getElementById("tree");
+const flow = document.getElementById("flow");
+const log = document.getElementById("consolelog");
+
+function renderTree(filter=""){
+  tree.innerHTML = "";
+  subsystems.forEach((s,i)=>{
+    if(!s.name.toLowerCase().includes(filter.toLowerCase())) return;
+    const b = document.createElement("button");
+    b.className = "node" + (selected===i ? " active":"");
+    const state = s.gen < currentGen ? "ready" : s.gen===currentGen ? "active" : "";
+    b.innerHTML = `<span class="dot ${state}"></span><span>${s.name}</span>`;
+    b.onclick = ()=>{selected=i; renderAll();};
+    tree.appendChild(b);
+  });
+}
+function renderFlow(){
+  flow.innerHTML="";
+  bootStages.forEach(([g,label],i)=>{
+    const d=document.createElement("div");
+    d.className="stage " + (i<currentGen?"done":i===currentGen?"current":"");
+    d.innerHTML=`<small>${g}</small><strong>${label}</strong>`;
+    d.onclick=()=>{currentGen=i; addLog("INFO",label,`generation selected ${g}`); renderAll();};
+    flow.appendChild(d);
+  });
+}
+function renderManual(){
+  const s=subsystems[selected];
+  document.getElementById("title").textContent=s.name;
+  document.getElementById("subtitle").textContent=s.desc;
+  document.getElementById("manualTitle").textContent=s.name+" contract";
+  document.getElementById("manualBody").textContent=s.contract;
+}
+function renderChecks(){
+  const box=document.getElementById("milestones");
+  box.innerHTML="";
+  milestoneChecks.forEach((text,i)=>{
+    const row=document.createElement("label");
+    row.className="check";
+    row.innerHTML=`<input type="checkbox" ${checks[i]?"checked":""}/><span>${text}</span>`;
+    row.querySelector("input").onchange=e=>{
+      checks[i]=e.target.checked;
+      localStorage.setItem("entropyChecks",JSON.stringify(checks));
+      renderMetrics();
+    };
+    box.appendChild(row);
+  });
+}
+function renderMetrics(){
+  const done=checks.filter(Boolean).length;
+  const pct=Math.round(done/checks.length*100);
+  document.getElementById("doneMetric").textContent=`${done} / ${checks.length}`;
+  document.getElementById("mileTop").textContent=pct+"%";
+  document.getElementById("genMetric").textContent="G"+currentGen;
+  document.getElementById("genTop").textContent="G"+currentGen;
+  document.getElementById("genLabel").textContent=bootStages[currentGen][1];
+}
+function renderAll(){
+  renderTree(document.getElementById("search").value);
+  renderFlow(); renderManual(); renderChecks(); renderMetrics();
+}
+function addLog(level,subsystem,message){
+  const line=document.createElement("div");
+  line.className="logline";
+  const cls=level==="OK"?"ok":level==="WARN"?"warn":"info";
+  line.innerHTML=`[G${currentGen}] <span class="${cls}">${level.padEnd(4)}</span> ${String(subsystem).padEnd(10)} ${message}`;
+  log.appendChild(line);
+  log.scrollTop=log.scrollHeight;
+}
+function stepBoot(){
+  if(currentGen < bootStages.length-1){
+    currentGen++;
+    const label=bootStages[currentGen][1];
+    addLog("OK",label,`generation G${currentGen} entered`);
+    // progressively mark associated milestone(s)
+    const target=Math.min(checks.length, Math.ceil((currentGen/(bootStages.length-1))*checks.length));
+    for(let i=0;i<target;i++) checks[i]=true;
+    localStorage.setItem("entropyChecks",JSON.stringify(checks));
+    renderAll();
+  } else {
+    addLog("OK","SYSTEM","operational product state reached");
+    stopRun();
+  }
+}
+function runBoot(){
+  if(timer){ stopRun(); return; }
+  document.getElementById("runBtn").textContent="Pause Boot";
+  timer=setInterval(stepBoot,700);
+}
+function stopRun(){
+  if(timer) clearInterval(timer);
+  timer=null;
+  document.getElementById("runBtn").textContent="Run Boot";
+}
+function reset(){
+  stopRun();
+  currentGen=0;
+  checks=milestoneChecks.map(()=>false);
+  localStorage.setItem("entropyChecks",JSON.stringify(checks));
+  log.innerHTML="";
+  addLog("INFO","BOOT","reset to firmware generation");
+  renderAll();
+}
+document.getElementById("search").addEventListener("input",e=>renderTree(e.target.value));
+document.getElementById("stepBtn").onclick=stepBoot;
+document.getElementById("runBtn").onclick=runBoot;
+document.getElementById("resetBtn").onclick=reset;
+document.getElementById("clearLogBtn").onclick=()=>log.innerHTML="";
+document.getElementById("injectBtn").onclick=()=>{
+  const choices=["DMA mapping delayed","NVMe queue timeout recovered","service dependency waiting","filesystem cache pressure"];
+  addLog("WARN",subsystems[selected].name,choices[Math.floor(Math.random()*choices.length)]);
+};
+
+renderAll();
+addLog("INFO","BOOT","Entropy OS build console ready");
+</script>
+</body>
+</html>
