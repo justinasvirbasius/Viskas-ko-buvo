@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Entropy OS Build Flow Viewer</title>
+<style>
+  :root{
+    --bg:#0b1020;
+    --panel:#121a2f;
+    --panel2:#18233d;
+    --text:#eef4ff;
+    --muted:#9eb0cc;
+    --accent:#77b7ff;
+    --accent2:#8ff0c9;
+    --danger:#ff8f9a;
+    --border:#2c3a5b;
+    --shadow:0 16px 40px rgba(0,0,0,.28);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:linear-gradient(180deg,#08101e,#0b1020 35%,#0f1730);
+    color:var(--text);
+    min-height:100vh;
+  }
+  button,input{font:inherit}
+  .app{
+    display:grid;
+    grid-template-columns:290px 1fr;
+    min-height:100vh;
+  }
+  aside{
+    position:sticky;
+    top:0;
+    height:100vh;
+    overflow:auto;
+    border-right:1px solid var(--border);
+    background:rgba(10,16,31,.94);
+    backdrop-filter:blur(16px);
+    padding:20px 16px;
+  }
+  .brand{
+    font-weight:800;
+    letter-spacing:.3px;
+    margin-bottom:4px;
+  }
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .search{
+    width:100%;
+    padding:11px 12px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:#0f1830;
+    color:var(--text);
+    outline:none;
+    margin-bottom:14px;
+  }
+  .navbtn{
+    width:100%;
+    text-align:left;
+    padding:10px 11px;
+    border:1px solid transparent;
+    background:transparent;
+    color:var(--muted);
+    border-radius:9px;
+    cursor:pointer;
+    margin:2px 0;
+  }
+  .navbtn:hover,.navbtn.active{
+    background:var(--panel2);
+    color:var(--text);
+    border-color:var(--border);
+  }
+  main{padding:28px}
+  .hero{
+    display:flex;
+    justify-content:space-between;
+    gap:20px;
+    align-items:flex-start;
+    margin-bottom:24px;
+  }
+  h1{font-size:clamp(28px,4vw,50px);margin:0 0 8px}
+  .hero p{max-width:780px;color:var(--muted);line-height:1.6;margin:0}
+  .pill{
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--accent2);
+    padding:8px 12px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin:16px 0 24px;
+  }
+  .toolbar button{
+    border:1px solid var(--border);
+    color:var(--text);
+    background:var(--panel);
+    padding:9px 12px;
+    border-radius:9px;
+    cursor:pointer;
+  }
+  .toolbar button:hover{background:var(--panel2)}
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+    gap:14px;
+  }
+  .card{
+    border:1px solid var(--border);
+    background:linear-gradient(180deg,var(--panel),#10192e);
+    box-shadow:var(--shadow);
+    padding:17px;
+    border-radius:15px;
+    cursor:pointer;
+    transition:.16s ease;
+  }
+  .card:hover{transform:translateY(-2px);border-color:#49638f}
+  .card h3{margin:0 0 7px;font-size:17px}
+  .card p{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+  .tag{
+    display:inline-block;
+    margin-top:12px;
+    color:var(--accent);
+    font-size:12px;
+    border:1px solid #32517a;
+    background:#0e203b;
+    border-radius:999px;
+    padding:4px 8px;
+  }
+  .flow{
+    display:flex;
+    gap:9px;
+    overflow:auto;
+    padding:10px 0 18px;
+    scroll-snap-type:x proximity;
+  }
+  .node{
+    min-width:145px;
+    scroll-snap-align:start;
+    border:1px solid var(--border);
+    background:var(--panel);
+    border-radius:12px;
+    padding:13px;
+    position:relative;
+  }
+  .node:not(:last-child)::after{
+    content:"→";
+    position:absolute;
+    right:-9px;top:50%;
+    transform:translate(50%,-50%);
+    color:var(--accent);
+  }
+  .node strong{display:block;margin-bottom:5px}
+  .node small{color:var(--muted)}
+  .section-title{margin:28px 0 12px}
+  .milestone{
+    border:1px solid var(--border);
+    background:var(--panel);
+    border-radius:14px;
+    padding:16px;
+  }
+  .check{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:8px 0;
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .check:last-child{border-bottom:0}
+  .check input{width:17px;height:17px}
+  .progress{
+    height:10px;
+    background:#091122;
+    border:1px solid var(--border);
+    border-radius:999px;
+    overflow:hidden;
+    margin:12px 0 2px;
+  }
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%}
+  dialog{
+    width:min(760px,calc(100vw - 32px));
+    border:1px solid var(--border);
+    border-radius:16px;
+    background:#0e1730;
+    color:var(--text);
+    box-shadow:0 30px 90px rgba(0,0,0,.55);
+    padding:0;
+  }
+  dialog::backdrop{background:rgba(0,0,0,.65)}
+  .modal-head{
+    display:flex;justify-content:space-between;gap:12px;
+    padding:18px 20px;border-bottom:1px solid var(--border)
+  }
+  .modal-body{padding:20px;line-height:1.6}
+  .modal-body code{
+    display:block;
+    white-space:pre-wrap;
+    background:#091122;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px;
+    color:#cfe4ff;
+    overflow:auto;
+  }
+  .close{
+    background:transparent;border:1px solid var(--border);
+    color:var(--text);border-radius:8px;padding:5px 9px;cursor:pointer
+  }
+  .empty{
+    color:var(--muted);
+    padding:24px;
+    border:1px dashed var(--border);
+    border-radius:12px;
+  }
+  @media(max-width:800px){
+    .app{grid-template-columns:1fr}
+    aside{
+      position:relative;height:auto;border-right:0;border-bottom:1px solid var(--border)
+    }
+    main{padding:20px}
+    .hero{flex-direction:column}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">Entropy OS Viewer</div>
+    <div class="sub">Bottom-up operating-system build manual</div>
+    <input id="search" class="search" placeholder="Search subsystems..." />
+    <div id="nav"></div>
+  </aside>
+
+  <main>
+    <div class="hero">
+      <div>
+        <h1>OS Build Flow</h1>
+        <p>
+          A browser-based map of the kernel construction sequence: firmware, serial, memory,
+          IDT/APIC, SMP, PCI, DMA, storage, filesystems, ELF, processes, scheduler, IPC,
+          networking, security, recovery, and desktop-facing system services.
+        </p>
+      </div>
+      <div class="pill" id="stagePill">Stage: Firmware</div>
+    </div>
+
+    <div class="toolbar">
+      <button id="resetProgress">Reset progress</button>
+      <button id="completeVisible">Complete visible</button>
+      <button id="expandAll">Show all details</button>
+    </div>
+
+    <h2 class="section-title">Dependency flow</h2>
+    <div class="flow" id="flow"></div>
+
+    <h2 class="section-title">Subsystems</h2>
+    <div class="grid" id="cards"></div>
+
+    <h2 class="section-title">Runtime milestone</h2>
+    <div class="milestone">
+      <div><strong id="progressLabel">0 / 0 complete</strong></div>
+      <div class="progress"><div id="progressBar"></div></div>
+      <div id="checks"></div>
+    </div>
+  </main>
+</div>
+
+<dialog id="detailDialog">
+  <div class="modal-head">
+    <div>
+      <strong id="detailTitle"></strong>
+      <div id="detailTag" class="tag"></div>
+    </div>
+    <button class="close" id="closeDialog">Close</button>
+  </div>
+  <div class="modal-body">
+    <p id="detailText"></p>
+    <code id="detailCode"></code>
+  </div>
+</dialog>
+
+<script>
+const systems = [
+  {
+    id:"serial", title:"Serial / Early Diagnostics", tag:"observability",
+    summary:"Bring up COM/serial output before complex kernel initialization.",
+    detail:"Serial is the earliest low-risk diagnostic path. Use it before enabling complicated interrupts, SMP, PCI, or storage.",
+    code:`reset → firmware → serial_init()
+serial_write("[BOOT] kernel entered\\n");
+
+Rule:
+unknown state → observed state`
+  },
+  {
+    id:"boot", title:"Boot Flow", tag:"bootstrap",
+    summary:"Enter the kernel, preserve firmware memory information, and establish architecture state.",
+    detail:"Keep the boot path deterministic. Capture firmware-provided tables and memory maps before reclaiming boot services.",
+    code:`Firmware
+  ↓
+loader
+  ↓
+kernel entry
+  ↓
+memory map
+  ↓
+architecture initialization`
+  },
+  {
+    id:"memory", title:"PMM / VMM / Heap", tag:"memory",
+    summary:"Normalize physical memory, map virtual memory, then construct the kernel heap.",
+    detail:"Separate physical allocation from virtual mapping and higher-level allocation. DMA later gets its own contract.",
+    code:`UEFI memory map
+  ↓
+Physical page allocator
+  ↓
+Virtual memory mapper
+  ↓
+Early allocator
+  ↓
+Kernel heap`
+  },
+  {
+    id:"idt", title:"GDT / TSS / IDT", tag:"interrupts",
+    summary:"Install exception gates, interrupt stacks, and normalized interrupt frames.",
+    detail:"Load the IDT while external interrupts remain disabled. Double fault handling should use a dedicated IST stack.",
+    code:`cli
+load GDT/TSS
+install IDT
+test INT3
+test #UD
+test #PF
+// STI only after IRQ routing is ready`
+  },
+  {
+    id:"timers", title:"APIC / Timers", tag:"interrupts",
+    summary:"Enable Local APIC, establish IOAPIC routing, calibrate timers, and define vectors.",
+    detail:"Keep vector allocation and interrupt routing centralized. Timer callbacks should feed a generic monotonic clock.",
+    code:`ACPI MADT
+  ↓
+LAPIC
+  ↓
+IOAPIC
+  ↓
+timer calibration
+  ↓
+scheduler tick`
+  },
+  {
+    id:"smp", title:"SMP", tag:"cpu",
+    summary:"Bring up application processors with per-CPU stacks, TSS, APIC, and scheduler state.",
+    detail:"The bootstrap processor owns global initialization. APs establish local state and wait until released.",
+    code:`BSP → discover CPUs
+    → allocate per-CPU state
+    → INIT/SIPI
+AP  → 64-bit mode
+    → GDT/TSS/IDT
+    → LAPIC
+    → waiting`
+  },
+  {
+    id:"pci", title:"PCI / BAR / MSI-X", tag:"devices",
+    summary:"Enumerate PCIe functions, decode resources, map BARs, and bind drivers.",
+    detail:"Discovery should be independent of driver binding. Resource ownership prevents overlapping claims.",
+    code:`PCIe ECAM
+  ↓
+function discovery
+  ↓
+BAR decode/map
+  ↓
+driver match
+  ↓
+MSI/MSI-X`
+  },
+  {
+    id:"dma", title:"DMA / IOMMU Boundary", tag:"memory",
+    summary:"Allocate coherent DMA memory and separate CPU addresses from device-visible addresses.",
+    detail:"Drivers should never casually derive DMA addresses by casting virtual pointers. Keep room for IOMMU translation.",
+    code:`CPU virtual
+  ↓
+physical memory
+  ↓
+DMA mapping
+  ↓
+device-visible address`
+  },
+  {
+    id:"storage", title:"AHCI / NVMe", tag:"storage",
+    summary:"Expose controllers through a shared block-device request interface.",
+    detail:"AHCI uses command lists/FIS structures; NVMe uses submission/completion queue pairs. Both terminate at block I/O.",
+    code:`AHCI ─┐
+      ├→ BlockDevice → I/O requests
+NVMe ─┘`
+  },
+  {
+    id:"gpt", title:"GPT / Partitions", tag:"storage",
+    summary:"Validate GPT headers and CRCs, then expose partitions as child block devices.",
+    detail:"Filesystems should not need to know partition offsets. A PartitionDevice translates relative LBAs.",
+    code:`Disk
+ ↓
+GPT verify
+ ↓
+PartitionDevice
+ ↓
+filesystem`
+  },
+  {
+    id:"fs", title:"FAT32 / ext2 / VFS", tag:"filesystem",
+    summary:"Mount FAT32 and read-only ext2 behind one virtual filesystem contract.",
+    detail:"Start with FAT32 and ext2 reads. Centralize path resolution and block/cluster translation.",
+    code:`BlockDevice
+  ↓
+GPT partition
+  ↓
+FAT32 / ext2
+  ↓
+VFS
+  ↓
+open/read`
+  },
+  {
+    id:"elf", title:"ELF / Modules", tag:"loader",
+    summary:"Validate executables, load segments, resolve symbols, and enforce permissions.",
+    detail:"Treat ELF as an untrusted boundary parser. Check offsets, sizes, relocations, and zero BSS.",
+    code:`validate ELF
+  ↓
+PT_LOAD
+  ↓
+map/copy/zero
+  ↓
+permissions
+  ↓
+entry point`
+  },
+  {
+    id:"proc", title:"Processes / Threads", tag:"runtime",
+    summary:"Create isolated address spaces and schedulable thread contexts.",
+    detail:"Processes own address spaces and handles; threads own execution state and kernel stacks.",
+    code:`Process
+ ├─ AddressSpace
+ ├─ HandleTable
+ └─ Threads[]
+       ↓
+    scheduler`
+  },
+  {
+    id:"sched", title:"Scheduler / Wait Queues", tag:"runtime",
+    summary:"Run per-CPU queues, preempt on timers, and block instead of spinning.",
+    detail:"Keep policy out of the assembly context switch. Use wait queues and events for I/O and synchronization.",
+    code:`timer IRQ
+  ↓
+need_reschedule
+  ↓
+scheduler boundary
+  ↓
+context switch`
+  },
+  {
+    id:"ipc", title:"IPC / Pipes / Shared Memory", tag:"runtime",
+    summary:"Add bounded channels, byte-stream pipes, and shared-memory objects.",
+    detail:"Small messages can be copied through channels; large payloads should use shared mappings.",
+    code:`process A
+  ↓ channel / pipe / shm
+process B`
+  },
+  {
+    id:"net", title:"Networking", tag:"network",
+    summary:"Build Ethernet → ARP → IPv4 → ICMP/UDP/TCP → sockets.",
+    detail:"Validate packet lengths at every layer and reuse kernel timers for TCP retransmission and timeouts.",
+    code:`NIC
+ ↓
+Ethernet
+ ↓
+ARP / IPv4
+ ↓
+UDP / TCP
+ ↓
+Sockets`
+  },
+  {
+    id:"security", title:"Objects / Handles / Security", tag:"security",
+    summary:"Use kernel objects, handle access masks, principals, ACLs, and narrow capabilities.",
+    detail:"Never expose raw kernel pointers to userspace. Perform access checks when handles are created and used.",
+    code:`request object
+  ↓
+security check
+  ↓
+Handle(access mask)
+  ↓
+operation`
+  },
+  {
+    id:"runtime", title:"Page Cache / Demand Paging", tag:"vm",
+    summary:"Add asynchronous I/O, page cache, file-backed mmap, copy-on-write, and dynamic linking.",
+    detail:"Demand paging turns user page faults into normal VM work rather than unconditional kernel panics.",
+    code:`#PF
+ ↓
+VmRegion lookup
+ ↓
+permission check
+ ↓
+backing object/page cache
+ ↓
+map page
+ ↓
+resume`
+  },
+  {
+    id:"recovery", title:"Power / Logging / Recovery", tag:"reliability",
+    summary:"Coordinate shutdown, persistent diagnostics, service recovery, and reduced recovery boot.",
+    detail:"A mature kernel should degrade intentionally. Keep structured logs, crash records, boot generations, and restart limits.",
+    code:`Running
+ ↓
+Degraded
+ ↓
+Recovery mode
+
+or
+
+Running → flush → stop services → ACPI shutdown`
+  }
+];
+
+const milestone = [
+  "Serial diagnostics active",
+  "Physical allocator online",
+  "IDT exception diagnostics working",
+  "APIC timer firing",
+  "Application processors online",
+  "PCIe devices enumerated",
+  "DMA buffer allocated",
+  "AHCI or NVMe block read works",
+  "GPT partition verified",
+  "FAT32/ext2 mounted",
+  "ELF executable loaded",
+  "Userspace syscall succeeds",
+  "Scheduler blocking/wakeup works",
+  "IPC channel send/receive works",
+  "TCP loopback connection works",
+  "Demand paging works",
+  "Security handle rights enforced",
+  "Clean shutdown/recovery path works"
+];
+
+const flowOrder = ["serial","boot","memory","idt","timers","smp","pci","dma","storage","gpt","fs","elf","proc","sched","ipc","net","security","runtime","recovery"];
+
+const nav = document.querySelector("#nav");
+const cards = document.querySelector("#cards");
+const flow = document.querySelector("#flow");
+const search = document.querySelector("#search");
+const checks = document.querySelector("#checks");
+const progressBar = document.querySelector("#progressBar");
+const progressLabel = document.querySelector("#progressLabel");
+const stagePill = document.querySelector("#stagePill");
+const dialog = document.querySelector("#detailDialog");
+
+let currentFilter = "";
+let activeTag = "all";
+
+function renderNav(){
+  const tags = ["all", ...new Set(systems.map(s=>s.tag))];
+  nav.innerHTML = "";
+  tags.forEach(tag=>{
+    const b = document.createElement("button");
+    b.className = "navbtn" + (activeTag===tag ? " active":"");
+    b.textContent = tag === "all" ? "All subsystems" : tag;
+    b.onclick = ()=>{ activeTag=tag; renderNav(); renderCards(); };
+    nav.appendChild(b);
+  });
+}
+
+function visibleSystems(){
+  const q = currentFilter.toLowerCase().trim();
+  return systems.filter(s=>{
+    const tagOk = activeTag==="all" || s.tag===activeTag;
+    const qOk = !q || [s.title,s.summary,s.detail,s.tag].join(" ").toLowerCase().includes(q);
+    return tagOk && qOk;
+  });
+}
+
+function renderCards(){
+  const items = visibleSystems();
+  cards.innerHTML = "";
+  if(!items.length){
+    cards.innerHTML = `<div class="empty">No subsystem matches this filter.</div>`;
+    return;
+  }
+  items.forEach(s=>{
+    const el = document.createElement("article");
+    el.className = "card";
+    el.innerHTML = `<h3>${s.title}</h3><p>${s.summary}</p><span class="tag">${s.tag}</span>`;
+    el.onclick = ()=>showDetail(s);
+    cards.appendChild(el);
+  });
+}
+
+function renderFlow(){
+  flow.innerHTML = "";
+  flowOrder.forEach(id=>{
+    const s = systems.find(x=>x.id===id);
+    const n = document.createElement("div");
+    n.className = "node";
+    n.innerHTML = `<strong>${s.title}</strong><small>${s.tag}</small>`;
+    n.onclick = ()=>showDetail(s);
+    flow.appendChild(n);
+  });
+}
+
+function showDetail(s){
+  document.querySelector("#detailTitle").textContent = s.title;
+  document.querySelector("#detailTag").textContent = s.tag;
+  document.querySelector("#detailText").textContent = s.detail;
+  document.querySelector("#detailCode").textContent = s.code;
+  dialog.showModal();
+}
+
+function loadProgress(){
+  try { return JSON.parse(localStorage.getItem("entropy-os-progress") || "{}"); }
+  catch { return {}; }
+}
+
+function saveProgress(p){
+  localStorage.setItem("entropy-os-progress", JSON.stringify(p));
+}
+
+function renderChecks(){
+  const progress = loadProgress();
+  checks.innerHTML = "";
+  milestone.forEach((m,i)=>{
+    const row = document.createElement("label");
+    row.className = "check";
+    row.innerHTML = `<input type="checkbox" data-i="${i}" ${progress[i] ? "checked":""}><span>${m}</span>`;
+    row.querySelector("input").addEventListener("change", e=>{
+      const p = loadProgress();
+      p[i] = e.target.checked;
+      saveProgress(p);
+      updateProgress();
+    });
+    checks.appendChild(row);
+  });
+  updateProgress();
+}
+
+function updateProgress(){
+  const p = loadProgress();
+  const done = milestone.filter((_,i)=>p[i]).length;
+  const pct = milestone.length ? Math.round(done/milestone.length*100) : 0;
+  progressBar.style.width = pct+"%";
+  progressLabel.textContent = `${done} / ${milestone.length} complete (${pct}%)`;
+
+  let stage = "Firmware";
+  if(done>=2) stage="Memory";
+  if(done>=4) stage="Interrupts";
+  if(done>=6) stage="Devices";
+  if(done>=9) stage="Storage";
+  if(done>=11) stage="Userspace";
+  if(done>=14) stage="Runtime";
+  if(done>=17) stage="Operational";
+  if(done===milestone.length) stage="Recovery-capable OS";
+  stagePill.textContent = "Stage: " + stage;
+}
+
+search.addEventListener("input", e=>{
+  currentFilter = e.target.value;
+  renderCards();
+});
+
+document.querySelector("#closeDialog").onclick = ()=>dialog.close();
+
+document.querySelector("#resetProgress").onclick = ()=>{
+  localStorage.removeItem("entropy-os-progress");
+  renderChecks();
+};
+
+document.querySelector("#completeVisible").onclick = ()=>{
+  const p = loadProgress();
+  milestone.forEach((_,i)=>p[i]=true);
+  saveProgress(p);
+  renderChecks();
+};
+
+document.querySelector("#expandAll").onclick = ()=>{
+  const items = visibleSystems();
+  if(!items.length) return;
+  const text = items.map(s=>`${s.title}\n${s.detail}\n\n${s.code}`).join("\n\n-----------------------------\n\n");
+  const w = window.open("", "_blank");
+  if(!w) return;
+  w.document.write(`<pre style="white-space:pre-wrap;font:15px/1.55 ui-monospace,monospace;padding:24px;background:#0b1020;color:#eef4ff">${text.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</pre>`);
+  w.document.close();
+};
+
+renderNav();
+renderFlow();
+renderCards();
+renderChecks();
+</script>
+</body>
+</html>
