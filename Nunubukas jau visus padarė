@@ -1,0 +1,12 @@
+DmaMapping mapping{};
+
+if (domain.map(
+        physical,
+        length,
+        DmaDirection::DeviceRead,
+        mapping) != Status::Success)
+{
+    return Status::NoMemory;
+}
+
+descriptor.address = mapping.device_address;
