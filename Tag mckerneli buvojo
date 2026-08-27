@@ -1,0 +1,21 @@
+using Iova = uint64_t;
+
+struct DmaMapping {
+    Iova device_address;
+
+    uintptr_t physical_address;
+    size_t length;
+
+    DmaDirection direction;
+};
+
+class DmaDomain {
+public:
+    virtual Status map(
+        uintptr_t physical,
+        size_t length,
+        DmaDirection direction,
+        DmaMapping& out) = 0;
+
+    virtual void unmap(DmaMapping& mapping) = 0;
+};
