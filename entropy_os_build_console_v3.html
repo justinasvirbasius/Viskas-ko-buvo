@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Entropy OS Build Console v3</title>
+<style>
+:root{--bg:#090d13;--p:#111823;--p2:#0c121a;--line:#293448;--t:#e8eef7;--m:#8f9bad;--a:#7dd3fc;--g:#86efac;--w:#fde68a;--b:#fda4af}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(#080b10,#0d121a);color:var(--t);font:14px system-ui,Segoe UI,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:#090d13ed}
+.brand{font-weight:800}.sub{display:block;color:var(--m);font-size:12px;font-weight:400}.pills{display:flex;gap:8px}.pill{border:1px solid var(--line);border-radius:99px;padding:6px 9px;color:var(--m)}.pill b{color:var(--g)}
+.app{display:grid;grid-template-columns:260px 1fr 360px;gap:12px;padding:12px;min-height:calc(100vh - 58px)}
+.panel{background:#111823e8;border:1px solid var(--line);border-radius:14px;overflow:hidden}.title{padding:10px 12px;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#c1ccdc}
+.search{padding:8px;border-bottom:1px solid var(--line)}input{width:100%;padding:9px;background:#091018;border:1px solid var(--line);color:var(--t);border-radius:8px}
+.tree{padding:7px;max-height:calc(100vh - 140px);overflow:auto}.node{display:flex;align-items:center;gap:9px;width:100%;padding:9px;border:0;background:transparent;color:var(--t);border-radius:8px;text-align:left;cursor:pointer}.node:hover,.node.on{background:#172235}.dot{width:9px;height:9px;border-radius:50%;background:#556174}.active{background:var(--g)!important}.prepared{background:var(--a)!important}.degraded{background:var(--w)!important}.failed{background:var(--b)!important}.g{margin-left:auto;color:var(--m);font-size:11px}
+.main{min-width:0}.hero{display:flex;justify-content:space-between;gap:12px;padding:14px;border-bottom:1px solid var(--line)}h1{font-size:20px;margin:0 0 4px}.muted{color:var(--m)}button{border:1px solid #35445c;background:#172131;color:var(--t);padding:8px 10px;border-radius:8px;cursor:pointer}button:hover{background:#1d2a3d}.primary{background:var(--a);color:#071019;border-color:transparent;font-weight:800}.warn{color:#fff2b3}.bad{color:#ffc4cd}.actions{display:flex;flex-wrap:wrap;gap:7px;justify-content:flex-end}
+.content{padding:12px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.card{border:1px solid var(--line);background:var(--p2);border-radius:10px;padding:10px}.card small{color:var(--m)}.metric{font-size:22px;font-weight:850;margin:3px 0}
+.flow{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin:10px 0}.stage{border:1px solid var(--line);background:var(--p2);border-radius:9px;padding:9px;cursor:pointer}.stage.current{border-color:#3880a3}.stage.done{border-color:#356249;background:#102118}.stage.fail{border-color:#783e49;background:#241217}.stage small{color:var(--m)}.stage b{display:block;font-size:12px;margin-top:2px}
+.tabs{display:flex;gap:5px;border-bottom:1px solid var(--line);margin-bottom:9px}.tab{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--m)}.tab.on{color:var(--t);border-bottom-color:var(--a)}.tabbody{display:none}.tabbody.on{display:block}
+.grid2{display:grid;grid-template-columns:1.25fr .75fr;gap:9px}.box{border:1px solid var(--line);background:#090f16;border-radius:10px;padding:11px}.box h3{margin:0 0 8px;font-size:14px}pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12px/1.5 ui-monospace,Consolas,monospace;color:#d7e3f3}
+.depwrap{display:flex;flex-wrap:wrap;gap:7px}.dep{border:1px solid var(--line);border-radius:99px;padding:5px 8px;font-size:12px}.ok{color:#bbf7d0;border-color:#315d48}.wait{color:#fef3c7;border-color:#6a5d2d}.no{color:#fecdd3;border-color:#753b46}
+.admin{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.admin .box p{margin:5px 0 0;color:var(--m);font-size:12px}.badge{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:3px 7px;font-size:11px}
+.right{display:flex;flex-direction:column}.checks{padding:8px;max-height:34vh;overflow:auto;border-bottom:1px solid var(--line)}label.ck{display:flex;gap:8px;padding:5px}.ck input{width:auto}.lab{padding:8px;border-bottom:1px solid var(--line)}.stategrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.console{flex:1;display:flex;flex-direction:column;min-height:300px}.consolebar{display:flex;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--line)}.log{flex:1;background:#070b10;padding:9px;overflow:auto;font:12px/1.45 ui-monospace,Consolas,monospace}.Linfo{color:var(--a)}.Lok{color:var(--g)}.Lwarn{color:var(--w)}.Lfail{color:var(--b)}
+.progress{height:6px;background:#070b10;border-radius:99px;overflow:hidden}.progress div{height:100%;background:linear-gradient(90deg,var(--a),var(--g))}
+@media(max-width:1100px){.app{grid-template-columns:230px 1fr}.right{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}.console{grid-column:2;grid-row:1/3}.metrics{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.app{grid-template-columns:1fr}.pills{display:none}.tree{max-height:300px}.right{display:block}.hero{display:block}.actions{justify-content:flex-start;margin-top:10px}.flow{grid-template-columns:repeat(2,1fr)}.grid2,.admin{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div class="brand">Entropy OS Build Console v3<span class="sub">dependency graph, boot scenarios, resources, and tests</span></div><div class="pills"><span class="pill">Gen <b id="hg">G0</b></span><span class="pill">Health <b id="hh">100%</b></span><span class="pill">Ready <b id="hr">0%</b></span></div></header>
+<div class="app">
+<aside class="panel"><div class="title">Subsystems</div><div class="search"><input id="q" placeholder="Filter..."></div><div class="tree" id="tree"></div></aside>
+<main class="panel main">
+  <div class="hero"><div><h1 id="name"></h1><div class="muted" id="desc"></div></div><div class="actions"><button id="reset">Reset</button><button id="step">Step</button><button id="run" class="primary">Run boot</button><button id="recover" class="warn">Recover</button></div></div>
+  <div class="content">
+    <div class="metrics">
+      <div class="card"><small>Generation</small><div class="metric" id="mg">G0</div><small id="ml"></small></div>
+      <div class="card"><small>Milestones</small><div class="metric" id="mc">0/20</div><div class="progress"><div id="pb"></div></div></div>
+      <div class="card"><small>Subsystem health</small><div class="metric" id="mh">100%</div><small id="mht">nominal</small></div>
+      <div class="card"><small>Product readiness</small><div class="metric" id="mr">0%</div><small>generation + checks + health</small></div>
+    </div>
+    <div class="flow" id="flow"></div>
+    <div class="tabs"><button class="tab on" data-tab="manual">Manual</button><button class="tab" data-tab="deps">Dependencies</button><button class="tab" data-tab="product">Product</button><button class="tab" data-tab="scenarios">Scenarios</button><button class="tab" data-tab="tests">Tests</button></div>
+    <section id="manual" class="tabbody on"><div class="grid2"><div class="box"><h3 id="mname"></h3><pre id="mbody"></pre></div><div class="box"><h3>Invariant</h3><pre id="inv"></pre><h3 style="margin-top:14px">State</h3><span class="badge" id="state"></span><p class="muted" id="stext"></p></div></div></section>
+    <section id="deps" class="tabbody"><div class="grid2"><div class="box"><h3>Requires</h3><div class="depwrap" id="req"></div></div><div class="box"><h3>Unlocks</h3><div class="depwrap" id="unlocks"></div></div></div><div class="box" style="margin-top:9px"><h3>Activation rule</h3><pre>DISCOVERED → PREPARED → ACTIVE
+
+Activate only when hard dependencies are ACTIVE or explicitly DEGRADED,
+resources are owned, the interrupt/polling path exists, and failure remains observable.
+Optional failures may degrade the product without halting the boot.</pre></div></section>
+    <section id="product" class="tabbody"><div class="admin" id="admin"></div></section><section id="scenarios" class="tabbody"><div class="box"><h3>Boot scenarios</h3><div class="admin"><div class="box"><h3>Clean boot</h3><p>Activate the dependency chain normally.</p><button id="scenarioClean">Run clean</button></div><div class="box"><h3>Storage failure</h3><p>Fail AHCI/NVMe and observe GPT/VFS blocking.</p><button id="scenarioStorage">Inject storage failure</button></div><div class="box"><h3>Degraded network</h3><p>Keep the product alive with networking degraded.</p><button id="scenarioNetwork">Degrade network</button></div></div></div></section><section id="tests" class="tabbody"><div class="box"><h3>Selected subsystem tests</h3><div id="testList"></div><button id="runTests" class="primary" style="margin-top:10px">Run tests</button></div></section>
+  </div>
+</main>
+<aside class="panel right">
+  <section><div class="title">Milestones</div><div class="checks" id="checks"></div></section>
+  <section><div class="title">State laboratory</div><div class="lab"><div class="stategrid"><button data-state="active">Active</button><button data-state="prepared">Prepared</button><button data-state="degraded">Degraded</button><button data-state="failed" class="bad">Failed</button></div></div></section>
+  <section class="console"><div class="title">Boot / recovery log</div><div class="consolebar"><button id="fault">Inject fault</button><button id="depcheck">Check deps</button><button id="clear">Clear</button></div><div class="log" id="log"></div></section>
+</aside>
+</div>
+<script>
+const S=[
+["Boot Flow",0,[],"Boot information is validated before it is trusted.","Firmware handoff and first trusted kernel state.",`RESET / UEFI
+  ↓ kernel entry
+validate boot information
+  ↓ early serial
+memory map
+  ↓ architecture init
+
+Publish immutable boot parameters and make failure observable.`],
+["Serial",1,["Boot Flow"],"The panic path must work without the heap.","Earliest observability and panic-safe diagnostics.",`UART / COM
+  ↓ polling path
+kernel logger
+  ↓ boot diagnostics
+panic output
+
+Buffered/interrupt-driven output may be added later, but keep the minimal fallback.`],
+["Allocators",2,["Boot Flow","Serial"],"A virtual pointer is never silently treated as a DMA address.","Physical pages, VMM, heap, object caches, DMA ownership.",`UEFI memory map
+  ↓ normalize + reserve
+physical allocator
+  ↓ virtual mapper
+kernel heap
+  ↓ slab/object caches
+DMA allocator`],
+["IDT / Exceptions",3,["Serial","Allocators"],"LIDT and STI are separate transitions.","Fault containment and normalized interrupt frames.",`CPU exception
+  ↓ assembly stub
+InterruptFrame
+  ↓ dispatcher
+handler policy
+
+Use IST for double fault. Later, user #PF becomes a VM mechanism.`],
+["Timers / APIC",4,["IDT / Exceptions","Allocators"],"IRQ routing and vector policy remain separate.","LAPIC, IOAPIC, monotonic time and timer events.",`ACPI MADT
+  ↓ LAPIC / IOAPIC
+vector allocator
+  ↓ timer calibration
+per-CPU timer source
+
+Expose monotonic_now() and timer_schedule().`],
+["SMP",4,["Timers / APIC","Allocators"],"APs never repeat global initialization.","Application-processor bring-up and per-CPU state.",`BSP discovers CPUs
+  ↓ allocate CPU-local state
+INIT / SIPI
+  ↓ AP long mode
+local GDT/TSS + LAPIC
+  ↓ WAITING
+scheduler release`],
+["PCI / BAR",5,["Allocators","Timers / APIC"],"Discovery and driver binding are separate.","PCIe enumeration, BAR mapping, resource ownership.",`ACPI MCFG → ECAM
+  ↓ PciFunction
+BAR decode
+  ↓ MMIO map
+resource claim
+  ↓ driver match`],
+["DMA",5,["Allocators","PCI / BAR"],"DMA mappings must remain IOMMU-compatible.","Coherent and streaming DMA mappings.",`CPU buffer
+  ↓ DMA mapping
+device-visible address
+  ↓ queue ownership
+completion
+  ↓ unmap/reuse`],
+["AHCI / NVMe",6,["PCI / BAR","DMA","IDT / Exceptions"],"Storage terminates at BlockDevice.","Queue-oriented storage controller layer.",`PCI storage function
+  ↓ probe + BAR
+DMA queues
+  ↓ MSI/MSI-X
+BlockDevice
+
+NVMe: admin queue → identify → I/O queues
+AHCI: command list → FIS → port device`],
+["GPT",6,["AHCI / NVMe"],"Partition metadata is verified before offsets are trusted.","GPT parsing and child partition devices.",`LBA0 protective MBR
+LBA1 GPT header
+LBA2+ entries
+
+Verify header CRC + entry-array CRC.
+Expose partitions as child BlockDevices.`],
+["FAT32 / ext2",7,["GPT"],"All disk counts and offsets are range checked.","Filesystem mounting and VFS access.",`PartitionDevice
+  ↓ filesystem probe
+mount
+  ↓ VFS tree
+path resolution
+  ↓ file handles
+
+Start ext2 read-only.`],
+["ELF / Modules",7,["FAT32 / ext2","Allocators"],"Images are verified before relocation or execution.","ELF program/module validation and loading.",`open ELF
+  ↓ validate tables
+allocate image
+  ↓ load + zero BSS
+resolve symbols
+  ↓ relocations
+RX/RW protections
+  ↓ entry / module_init`],
+["Processes / Syscalls",8,["ELF / Modules","SMP"],"Userspace crosses through handles and validated buffers.","Ring-3 processes, scheduler and syscall ABI.",`ELF → AddressSpace
+  ↓ user stack
+Thread
+  ↓ scheduler
+SYSCALL/SYSRET
+
+Validate every user range. Never expose kernel pointers.`],
+["Services / IPC",9,["Processes / Syscalls","FAT32 / ext2"],"Kernel provides mechanism; userspace owns policy.","IPC, init, service graph, restart policy.",`kernel objects
+  ↓ IPC / pipes / shared memory
+init
+  ↓ service graph
+restart/watchdog
+  ↓ operational services`],
+["Networking",9,["PCI / BAR","DMA","Services / IPC"],"Each packet layer validates length first.","Ethernet, IP, TCP/UDP, sockets, DHCP, DNS.",`NIC → Ethernet → ARP → IPv4
+                    ├ ICMP
+                    ├ UDP
+                    └ TCP → sockets
+
+Add loopback early for hardware-independent testing.`],
+["Desktop / Product",10,["Processes / Syscalls","Services / IPC","FAT32 / ext2"],"Product apps consume service APIs, not kernel internals.","Desktop, admin suite, updater, restore and installer.",`display + input
+  ↓ window server
+compositor
+  ↓ desktop shell
+system tools
+  ↓ package/update/restore
+installer`]
+];
+const G=["Firmware","Serial","Memory","IDT","SMP/APIC","PCI/DMA","Storage","VFS/ELF","Userspace","Services/Net","Product"];
+const M=["Boot parameters validated","Serial panic path online","Physical allocator online","Virtual mapper + heap online","IDT diagnostics online","LAPIC timer firing","Application processor online","PCI functions enumerated","DMA mapping operational","NVMe/AHCI block read","GPT verified","Filesystem mounted","ELF/module loader ready","Ring-3 process started","Syscall boundary working","IPC/service manager alive","TCP/UDP socket path alive","Configuration/security services alive","Desktop/admin suite available","Installer/recovery path available"];
+const A=[["File Explorer","VFS + async jobs"],["Task Manager","scheduler telemetry"],["Device Manager","device/driver objects"],["Event Viewer","system event log"],["Service Manager","service graph"],["Disk Manager","block/GPT/mounts"],["Config Editor","transactional config"],["Security Center","security aggregation"],["Performance Profiler","latency and I/O counters"],["Package Manager","package transactions"],["System Restore","snapshot recovery"],["Installer","bootable installation"]];
+let gen=0,sel=0,timer=null;
+let checks=JSON.parse(localStorage.getItem("eos_v2_checks")||"null")||M.map(()=>false);
+let states=JSON.parse(localStorage.getItem("eos_v2_states")||"null")||Object.fromEntries(S.map(x=>[x[0],"absent"]));
+if(states["Boot Flow"]==="absent")states["Boot Flow"]="active";
+const $=id=>document.getElementById(id);
+function save(){localStorage.setItem("eos_v2_checks",JSON.stringify(checks));localStorage.setItem("eos_v2_states",JSON.stringify(states))}
+function cls(st){return st==="active"?"active":st}
+function log(level,sub,msg){let d=document.createElement("div");d.innerHTML=`[G${gen}] <span class="L${level.toLowerCase()}">${level.padEnd(4)}</span> ${sub.padEnd(12)} ${msg}`;$("log").appendChild(d);$("log").scrollTop=$("log").scrollHeight}
+function renderTree(){let q=$("q").value.toLowerCase();$("tree").innerHTML="";S.forEach((s,i)=>{if(!s[0].toLowerCase().includes(q))return;let b=document.createElement("button");b.className="node"+(sel===i?" on":"");b.innerHTML=`<span class="dot ${cls(states[s[0]])}"></span>${s[0]}<span class="g">G${s[1]}</span>`;b.onclick=()=>{sel=i;render()};$("tree").appendChild(b)})}
+function renderFlow(){$("flow").innerHTML="";G.forEach((x,i)=>{let bad=S.filter(s=>s[1]===i).some(s=>states[s[0]]==="failed");let d=document.createElement("div");d.className="stage "+(bad?"fail":i<gen?"done":i===gen?"current":"");d.innerHTML=`<small>G${i}</small><b>${x}</b>`;d.onclick=()=>{gen=i;log("info",x,"manual generation selection");render()};$("flow").appendChild(d)})}
+function ready(s){return s[2].every(r=>["active","degraded"].includes(states[r]))}
+function renderMain(){let s=S[sel],st=states[s[0]];$("name").textContent=s[0];$("desc").textContent=s[4];$("mname").textContent=s[0]+" manual";$("mbody").textContent=s[5];$("inv").textContent=s[3];$("state").textContent=st.toUpperCase();$("stext").textContent=st==="active"?"Contract is published to dependents.":st==="prepared"?"Resources prepared; activation is pending.":st==="degraded"?"Usable with reduced capability.":st==="failed"?"Failed; dependents may block or fall back.":"Not prepared yet.";$("req").innerHTML="";(s[2].length?s[2]:["None"]).forEach(r=>{let d=document.createElement("span"),st2=r==="None"?"active":states[r];d.className="dep "+(st2==="active"?"ok":st2==="failed"?"no":"wait");d.textContent=r==="None"?"None":`${r} · ${st2}`;$("req").appendChild(d)});$("unlocks").innerHTML="";let u=S.filter(x=>x[2].includes(s[0]));(u.length?u:[[ "No direct dependents" ]]).forEach(x=>{let d=document.createElement("span");d.className="dep";d.textContent=x[0];$("unlocks").appendChild(d)})}
+function renderChecks(){$("checks").innerHTML="";M.forEach((m,i)=>{let l=document.createElement("label");l.className="ck";l.innerHTML=`<input type=checkbox ${checks[i]?"checked":""}><span>${m}</span>`;l.querySelector("input").onchange=e=>{checks[i]=e.target.checked;save();metrics()};$("checks").appendChild(l)})}
+function renderAdmin(){$("admin").innerHTML="";A.forEach((a,i)=>{let unlocked=gen>=10||(gen>=9&&i<9)||(gen>=8&&i<4),d=document.createElement("div");d.className="box";d.innerHTML=`<h3>${a[0]}</h3><p>${a[1]}</p><div style="margin-top:8px"><span class="badge">${unlocked?"READY":"LOCKED"}</span></div>`;$("admin").appendChild(d)})}
+function health(){let n=0;S.forEach(s=>{let st=states[s[0]];n+=st==="active"?1:st==="degraded"?.65:st==="prepared"?.35:st==="failed"?0:.1});return Math.round(n/S.length*100)}
+function metrics(){let done=checks.filter(Boolean).length,p=Math.round(done/M.length*100),h=health(),r=Math.round(gen/10*55+p*.35+h*.1);$("mg").textContent="G"+gen;$("ml").textContent=G[gen];$("hg").textContent="G"+gen;$("mc").textContent=`${done}/${M.length}`;$("pb").style.width=p+"%";$("mh").textContent=h+"%";$("hh").textContent=h+"%";$("mht").textContent=h>85?"nominal":h>60?"degraded but viable":"recovery required";$("mr").textContent=r+"%";$("hr").textContent=r+"%"}
+function render(){renderTree();renderFlow();renderMain();renderChecks();renderAdmin();metrics()}
+function activateGeneration(g){S.filter(s=>s[1]===g).forEach(s=>{if(states[s[0]]==="failed")return;if(ready(s)){states[s[0]]="active";log("ok",s[0],"activated")}else{states[s[0]]="prepared";log("warn",s[0],"waiting on dependency")}})}
+function step(){if(gen===0&&states["Boot Flow"]!=="active")states["Boot Flow"]="active";if(gen<10){gen++;activateGeneration(gen);let target=Math.ceil(gen/10*M.length);for(let i=0;i<target;i++)checks[i]=true;save();render()}else{log("ok","SYSTEM","product generation reached");stop()}}
+function run(){if(timer){stop();return}$("run").textContent="Pause";timer=setInterval(step,650)}
+function stop(){if(timer)clearInterval(timer);timer=null;$("run").textContent="Run boot"}
+$("q").oninput=renderTree;$("step").onclick=step;$("run").onclick=run;$("reset").onclick=()=>{stop();gen=0;checks=M.map(()=>false);states=Object.fromEntries(S.map(s=>[s[0],"absent"]));states["Boot Flow"]="active";save();$("log").innerHTML="";log("info","BOOT","reset to firmware");render()};$("recover").onclick=()=>{let n=0;S.forEach(s=>{if(["failed","degraded"].includes(states[s[0]])&&ready(s)){states[s[0]]="active";n++;log("ok",s[0],"recovered to ACTIVE")}});if(!n)log("info","SYSTEM","no recoverable failures");save();render()};$("fault").onclick=()=>{let s=S[sel];states[s[0]]=Math.random()>.3?"failed":"degraded";log(states[s[0]]==="failed"?"fail":"warn",s[0],"simulated "+states[s[0]]+" state");save();render()};$("depcheck").onclick=()=>{let s=S[sel];if(!s[2].length)log("ok",s[0],"no hard dependencies");s[2].forEach(r=>log(states[r]==="active"?"ok":"warn",s[0],r+": "+states[r]))};$("clear").onclick=()=>$("log").innerHTML="";
+document.querySelectorAll("[data-state]").forEach(b=>b.onclick=()=>{let s=S[sel],st=b.dataset.state;states[s[0]]=st;log(st==="failed"?"fail":st==="degraded"?"warn":"info",s[0],"state set to "+st.toUpperCase());save();render()});
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab,.tabbody").forEach(x=>x.classList.remove("on"));b.classList.add("on");$(b.dataset.tab).classList.add("on")});
+function renderTests(){let s=S[sel];let tests={"Boot Flow":["boot params validated","firmware pointers bounded"],"Serial":["byte transmit","panic fallback"],"Allocators":["page alloc/free","map/unmap"],"IDT / Exceptions":["INT3 handler","#PF diagnostics"],"Timers / APIC":["timer tick","EOI path"],"SMP":["AP online","CPU-local isolation"],"PCI / BAR":["enumeration","BAR decode"],"DMA":["coherent buffer","device address"],"AHCI / NVMe":["identify","read LBA0"],"GPT":["header CRC","entry CRC"],"FAT32 / ext2":["mount","root read"],"ELF / Modules":["ELF validate","relocation"],"Processes / Syscalls":["ring3 entry","user pointer guard"],"Services / IPC":["channel send","restart policy"],"Networking":["loopback ping","TCP handshake"],"Desktop / Product":["surface create","package transaction"]};let arr=tests[s[0]]||[];let box=$("testList");if(!box)return;box.innerHTML="";arr.forEach(t=>{let d=document.createElement("div");d.className="box";d.style.marginBottom="6px";d.textContent=t;box.appendChild(d)})}
+let oldRender=render;render=function(){oldRender();renderTests()};
+setTimeout(()=>{let a=$("scenarioClean"),b=$("scenarioStorage"),c=$("scenarioNetwork"),rt=$("runTests");if(a)a.onclick=()=>{reset.click();for(let i=0;i<10;i++)step()};if(b)b.onclick=()=>{states["AHCI / NVMe"]="failed";states["GPT"]="prepared";states["FAT32 / ext2"]="prepared";log("fail","AHCI / NVMe","scenario storage failure");save();render()};if(c)c.onclick=()=>{states["Networking"]="degraded";log("warn","Networking","scenario degraded networking");save();render()};if(rt)rt.onclick=()=>{let s=S[sel];let pass=states[s[0]]==="active"||states[s[0]]==="degraded";log(pass?"ok":"fail",s[0],pass?"selected tests passed":"tests failed because subsystem is not active")} },0);
+render();log("info","BOOT","Entropy OS cockpit v3 ready");
+</script>
+</body></html>
