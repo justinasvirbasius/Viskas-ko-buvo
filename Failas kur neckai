@@ -1,0 +1,242 @@
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <random>
+#include <vector>
+
+struct Vec2 {
+    float x = 0.0f;
+    float y = 0.0f;
+
+    Vec2 operator+(Vec2 b) const { return {x + b.x, y + b.y}; }
+    Vec2 operator-(Vec2 b) const { return {x - b.x, y - b.y}; }
+    Vec2 operator*(float s) const { return {x * s, y * s}; }
+
+    Vec2& operator+=(Vec2 b) {
+        x += b.x;
+        y += b.y;
+        return *this;
+    }
+};
+
+static float dot(Vec2 a, Vec2 b) {
+    return a.x * b.x + a.y * b.y;
+}
+
+static float lengthSq(Vec2 v) {
+    return dot(v, v);
+}
+
+static float length(Vec2 v) {
+    return std::sqrt(lengthSq(v));
+}
+
+static Vec2 normalized(Vec2 v) {
+    float l = length(v);
+    if (l < 1e-6f)
+        return {};
+    return v * (1.0f / l);
+}
+
+// ---------------------------------------------------------
+// Smallest Voronoi entity.
+// It is deliberately not a polygon.
+// ---------------------------------------------------------
+
+struct LightBit {
+    uint32_t id = 0;
+
+    Vec2 position;
+    Vec2 velocity;
+
+    float energy = 1.0f;
+    float radius = 1.0f;
+
+    // Optional changing phase gives each site
+    // a small field oscillation.
+    float phase = 0.0f;
+};
+
+// ---------------------------------------------------------
+// Result of evaluating one point in the field.
+// ---------------------------------------------------------
+
+struct FieldSample {
+    uint32_t owner = UINT32_MAX;
+
+    float firstDistance =
+        std::numeric_limits<float>::infinity();
+
+    float secondDistance =
+        std::numeric_limits<float>::infinity();
+
+    // 0 = deep inside one region
+    // 1 = approximately on a Voronoi boundary
+    float boundary = 0.0f;
+};
+
+// ---------------------------------------------------------
+// Horde owns the sites.
+// The field itself owns no geometry.
+// ---------------------------------------------------------
+
+class VoronoiHorde {
+public:
+    void add(Vec2 p,
+             Vec2 velocity = {},
+             float energy = 1.0f,
+             float radius = 1.0f)
+    {
+        LightBit b;
+
+        b.id = nextId_++;
+        b.position = p;
+        b.velocity = velocity;
+        b.energy = energy;
+        b.radius = std::max(radius, 0.001f);
+
+        bits_.push_back(b);
+    }
+
+    const std::vector<LightBit>& bits() const {
+        return bits_;
+    }
+
+    std::vector<LightBit>& bits() {
+        return bits_;
+    }
+
+    // -----------------------------------------------------
+    // The essential Voronoi operation.
+    //
+    // Nothing is rasterized.
+    // Nothing is triangulated.
+    //
+    // We merely ask:
+    //     "Who owns this coordinate?"
+    // -----------------------------------------------------
+
+    FieldSample sample(Vec2 p) const {
+        FieldSample out;
+
+        for (const LightBit& b : bits_) {
+            float d = metric(b, p);
+
+            if (d < out.firstDistance) {
+                out.secondDistance = out.firstDistance;
+                out.firstDistance = d;
+                out.owner = b.id;
+            }
+            else if (d < out.secondDistance) {
+                out.secondDistance = d;
+            }
+        }
+
+        if (std::isfinite(out.secondDistance)) {
+            float gap =
+                std::abs(out.secondDistance -
+                         out.firstDistance);
+
+            // Small gap means two owners are competing.
+            out.boundary =
+                std::exp(-gap * 8.0f);
+        }
+
+        return out;
+    }
+
+    // -----------------------------------------------------
+    // Dynamic horde evolution.
+    // Each bit reads its neighboring field indirectly.
+    // -----------------------------------------------------
+
+    void step(float dt) {
+        if (bits_.empty())
+            return;
+
+        std::vector<Vec2> accelerations(bits_.size());
+
+        for (size_t i = 0; i < bits_.size(); ++i) {
+            Vec2 force{};
+
+            for (size_t j = 0; j < bits_.size(); ++j) {
+                if (i == j)
+                    continue;
+
+                Vec2 delta =
+                    bits_[j].position -
+                    bits_[i].position;
+
+                float d2 =
+                    lengthSq(delta) + 0.001f;
+
+                Vec2 n = normalized(delta);
+
+                // Nearby sites resist collapsing
+                // into the same location.
+                float repel =
+                    0.025f / d2;
+
+                force += n * (-repel);
+
+                // Weak horde cohesion.
+                float attract =
+                    0.0004f *
+                    std::sqrt(d2);
+
+                force += n * attract;
+            }
+
+            accelerations[i] = force;
+        }
+
+        for (size_t i = 0; i < bits_.size(); ++i) {
+            LightBit& b = bits_[i];
+
+            b.velocity +=
+                accelerations[i] * dt;
+
+            // Gentle damping prevents an exploding horde.
+            b.velocity =
+                b.velocity * std::exp(-0.4f * dt);
+
+            b.position +=
+                b.velocity * dt;
+
+            b.phase += dt *
+                       (0.5f + b.energy * 0.1f);
+        }
+    }
+
+private:
+    float metric(const LightBit& b,
+                 Vec2 p) const
+    {
+        Vec2 delta = p - b.position;
+
+        float spatial =
+            lengthSq(delta) /
+            (b.radius * b.radius + 1e-5f);
+
+        // Energy lets a LightBit gain slightly more
+        // territory without physically becoming larger.
+        float energyBias =
+            b.energy * 0.12f;
+
+        // A tiny temporal variation makes this a living
+        // field rather than a frozen Voronoi diagram.
+        float wave =
+            std::sin(
+                length(delta) * 4.0f -
+                b.phase
+            ) * 0.025f;
+
+        return spatial -
+               energyBias +
+               wave;
+    }
+
+    std::vector<LightBit> bits_;
+    uint32_t nextId_ = 0;
+};
