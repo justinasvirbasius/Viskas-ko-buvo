@@ -1,0 +1,46 @@
+struct Cell {
+    std::vector<uint32_t> members;
+};
+
+class HordeGrid {
+public:
+    HordeGrid(
+        int width,
+        int height,
+        float cellSize)
+        : width_(width),
+          height_(height),
+          cellSize_(cellSize),
+          cells_(width * height)
+    {}
+
+    void clear() {
+        for (auto& c : cells_)
+            c.members.clear();
+    }
+
+    void insert(
+        uint32_t particle,
+        Vec2 position)
+    {
+        int x = static_cast<int>(
+            std::floor(position.x / cellSize_));
+
+        int y = static_cast<int>(
+            std::floor(position.y / cellSize_));
+
+        x = std::clamp(x, 0, width_-1);
+        y = std::clamp(y, 0, height_-1);
+
+        cells_[y * width_ + x]
+            .members
+            .push_back(particle);
+    }
+
+private:
+    int width_;
+    int height_;
+    float cellSize_;
+
+    std::vector<Cell> cells_;
+};
