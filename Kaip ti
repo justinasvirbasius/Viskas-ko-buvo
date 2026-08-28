@@ -1,0 +1,18 @@
+class KernelObject {
+public:
+    void retain() noexcept {
+        refs_.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void release() noexcept {
+        if (refs_.fetch_sub(1, std::memory_order_acq_rel) == 1)
+            destroy();
+    }
+
+protected:
+    virtual ~KernelObject() = default;
+    virtual void destroy() { delete this; }
+
+private:
+    std::atomic<uint32_t> refs_{1};
+};
