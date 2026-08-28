@@ -1,0 +1,24 @@
+enum class WorkPriority : uint8_t {
+    Critical,
+    High,
+    Normal,
+    Background
+};
+
+struct WorkItem {
+    void (*function)(void*);
+    void* context;
+
+    WorkPriority priority;
+    std::atomic<bool> queued;
+};
+
+
+struct WorkerPool {
+    RunQueue critical;
+    RunQueue high;
+    RunQueue normal;
+    RunQueue background;
+
+    Event available;
+};
