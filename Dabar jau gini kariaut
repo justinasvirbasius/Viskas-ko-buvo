@@ -1,0 +1,17 @@
+class Completion {
+public:
+    void complete(Status status);
+    Status wait();
+    bool try_wait(Status& result);
+
+private:
+    SpinLock lock_;
+    WaitQueue waiters_;
+    bool completed_ = false;
+    Status result_;
+};
+
+struct WaitQueue {
+    SpinLock lock;
+    IntrusiveList<Thread> sleepers;
+};
