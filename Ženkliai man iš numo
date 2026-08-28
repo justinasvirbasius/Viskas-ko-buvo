@@ -1,0 +1,13 @@
+enum class RequestState : uint8_t {
+    Created,
+    Queued,
+    Running,
+    Cancelling,
+    Completed,
+    Cancelled
+};
+
+struct AsyncRequest {
+    std::atomic<RequestState> state;
+    Completion completion;
+};
