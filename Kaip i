@@ -1,0 +1,5 @@
+struct ResizableBarInfo {
+    uint8_t bar_index;
+    uint32_t supported_sizes;
+    uint8_t current_size_encoding;
+};
