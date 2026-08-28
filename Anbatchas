@@ -1,0 +1,5 @@
+struct PcieExtendedCapabilityHeader {
+    uint16_t id;
+    uint8_t version;
+    uint16_t next;
+};
