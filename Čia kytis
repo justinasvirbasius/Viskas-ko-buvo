@@ -1,0 +1,9 @@
+struct PciCapability {
+    uint8_t id;
+    uint16_t offset;
+};
+
+
+Status walk_pci_capabilities(
+    PciFunction& function,
+    FunctionRef<bool(const PciCapability&)> visitor);
