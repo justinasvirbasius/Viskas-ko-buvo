@@ -1,0 +1,55 @@
+struct CurrentVector
+{
+    float x = 0.0f;
+    float y = 0.0f;
+    float entropy = 0.0f;
+    float equality = 0.0f;
+};
+
+struct AlternatedCurrent
+{
+    CurrentVector forward;
+    CurrentVector counter;
+
+    float disagreement = 0.0f;
+    float certainty = 0.0f;
+};
+
+inline AlternatedCurrent alternateCurrent(
+    const CurrentVector& previous,
+    const CurrentVector& observed,
+    float forwardRate,
+    float counterRate)
+{
+    AlternatedCurrent out;
+
+    out.forward.x =
+        previous.x +
+        forwardRate * (observed.x - previous.x);
+
+    out.forward.y =
+        previous.y +
+        forwardRate * (observed.y - previous.y);
+
+    out.counter.x =
+        previous.x -
+        counterRate * (observed.x - previous.x);
+
+    out.counter.y =
+        previous.y -
+        counterRate * (observed.y - previous.y);
+
+    float dx =
+        out.forward.x - out.counter.x;
+
+    float dy =
+        out.forward.y - out.counter.y;
+
+    out.disagreement =
+        std::sqrt(dx * dx + dy * dy);
+
+    out.certainty =
+        std::exp(-out.disagreement);
+
+    return out;
+}
