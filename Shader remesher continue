@@ -1,0 +1,50 @@
+struct RemeshThresholds
+{
+    float split    = 0.70f;
+    float collapse = 0.20f;
+};
+
+enum class RemeshAction
+{
+    Keep,
+    Split,
+    Collapse
+};
+
+RemeshAction classify(
+    float error,
+    const RemeshThresholds& t)
+{
+    if (error > t.split)
+        return RemeshAction::Split;
+
+    if (error < t.collapse)
+        return RemeshAction::Collapse;
+
+    return RemeshAction::Keep;
+}
+
+
+struct HalfEdge
+{
+    uint32_t vertex;
+    uint32_t face;
+
+    uint32_t next;
+    uint32_t twin;
+};
+
+struct VertexTopo
+{
+    glm::vec3 position;
+    glm::vec3 normal;
+
+    uint32_t edge;
+};
+
+struct FaceTopo
+{
+    uint32_t edge;
+};
+
+
