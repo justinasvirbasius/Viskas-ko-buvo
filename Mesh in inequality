@@ -1,0 +1,27 @@
+float combinedAgreement(
+    float temporal,
+    float locality)
+{
+    constexpr float a = 0.45f;
+    constexpr float b = 0.55f;
+
+    return
+        std::pow(temporal, a) *
+        std::pow(locality, b);
+}
+
+
+
+struct MeshReservation
+{
+    uint32_t locality = 0;
+
+    std::vector<uint32_t> pixels;
+
+    float confidence = 0.0f;
+
+    bool committed = false;
+};
+
+
+
