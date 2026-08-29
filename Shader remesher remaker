@@ -1,0 +1,52 @@
+void Renderer::frame()
+{
+    updateCamera();
+
+    dispatchGeometryMetricPass();
+
+    dispatchShaderPressurePass();
+
+    dispatchScreenErrorPass();
+
+    dispatchCombineMetrics();
+
+    buildRemeshRequests();
+
+    remesher.processSplits();
+    remesher.processCollapses();
+    remesher.processFlips();
+
+    remesher.relaxVertices();
+
+    rebuildNormalsAndTangents();
+
+    dispatchLightingPrecompute();
+
+    buildLightClusters();
+
+    renderRuntimeAdditiveLighting();
+
+    toneMapAndPresent();
+}
+
+
+std::sort(
+    requests.begin(),
+    requests.end(),
+    [](const EdgeRequest& a,
+       const EdgeRequest& b)
+    {
+        return a.error > b.error;
+    }
+);
+
+uint32_t count =
+    std::min(
+        budget.maxSplitsPerFrame,
+        uint32_t(requests.size())
+    );
+
+for (uint32_t i = 0; i < count; ++i)
+{
+    splitEdge(requests[i].edgeID);
+}
