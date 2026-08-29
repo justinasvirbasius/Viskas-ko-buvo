@@ -1,0 +1,55 @@
+struct FaceMetric
+{
+    float curvature;
+    float displacement;
+    float screenError;
+    float totalError;
+};
+
+float combineMetric(
+    float curvature,
+    float displacement,
+    float screenError)
+{
+    constexpr float wc = 0.35f;
+    constexpr float wd = 0.40f;
+    constexpr float ws = 0.25f;
+
+    return
+        wc * curvature +
+        wd * displacement +
+        ws * screenError;
+}
+
+
+float curvatureError(
+    const glm::vec3& n0,
+    const glm::vec3& n1)
+{
+    float d =
+        glm::clamp(
+            glm::dot(n0, n1),
+            -1.0f,
+            1.0f
+        );
+
+    return 1.0f - d;
+}
+
+
+float screenSpaceError(
+    const glm::vec3& center,
+    float worldSize,
+    const glm::vec3& cameraPosition,
+    float projectionScale)
+{
+    float distance =
+        glm::length(center - cameraPosition);
+
+    return
+        worldSize *
+        projectionScale /
+        std::max(distance, 0.01f);
+}
+
+
