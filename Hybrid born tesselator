@@ -1,0 +1,193 @@
+// hybrid_tessellator.hpp
+#pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <queue>
+#include <vector>
+
+struct Pixel {
+    float r, g, b;
+};
+
+struct Cell {
+    int x = 0;
+    int y = 0;
+    int layer = 0;
+    float entropy = 0.0f;
+};
+
+struct LayerConfig {
+    float threshold;
+    float colorWeight;
+    float distanceWeight;
+    float parentWeight;
+    int maxRadius;
+};
+
+class HybridTessellator {
+public:
+    HybridTessellator(
+        int width,
+        int height,
+        const std::vector<Pixel>& pixels)
+        : w_(width),
+          h_(height),
+          pixels_(pixels),
+          owner_(width * height, -1) {}
+
+    std::vector<Cell> growFromPixel(
+        int seedX,
+        int seedY,
+        const std::vector<LayerConfig>& layers)
+    {
+        std::vector<Cell> result;
+
+        // Every layer begins from the region accepted by its parent.
+        std::vector<int> frontier {
+            index(seedX, seedY)
+        };
+
+        owner_[index(seedX, seedY)] = 0;
+
+        for (int layer = 0;
+             layer < static_cast<int>(layers.size());
+             ++layer)
+        {
+            std::vector<int> nextFrontier;
+            std::queue<int> q;
+
+            for (int i : frontier)
+                q.push(i);
+
+            const LayerConfig& cfg = layers[layer];
+
+            while (!q.empty()) {
+                int current = q.front();
+                q.pop();
+
+                int cx = current % w_;
+                int cy = current / w_;
+
+                static constexpr int DX[4] = {1, -1, 0, 0};
+                static constexpr int DY[4] = {0, 0, 1, -1};
+
+                for (int n = 0; n < 4; ++n) {
+                    int nx = cx + DX[n];
+                    int ny = cy + DY[n];
+
+                    if (!inside(nx, ny))
+                        continue;
+
+                    int ni = index(nx, ny);
+
+                    // Already claimed by this or an earlier layer.
+                    if (owner_[ni] >= 0)
+                        continue;
+
+                    float e = equalityEnergy(
+                        cx, cy,
+                        nx, ny,
+                        seedX, seedY,
+                        layer,
+                        cfg);
+
+                    if (e > cfg.threshold)
+                        continue;
+
+                    int dx = nx - seedX;
+                    int dy = ny - seedY;
+
+                    if (dx * dx + dy * dy >
+                        cfg.maxRadius * cfg.maxRadius)
+                        continue;
+
+                    owner_[ni] = layer;
+
+                    result.push_back({
+                        nx,
+                        ny,
+                        layer,
+                        e
+                    });
+
+                    q.push(ni);
+                    nextFrontier.push_back(ni);
+                }
+            }
+
+            // The current shell gives birth to the next shell.
+            frontier.insert(
+                frontier.end(),
+                nextFrontier.begin(),
+                nextFrontier.end());
+        }
+
+        return result;
+    }
+
+private:
+    int w_;
+    int h_;
+
+    std::vector<Pixel> pixels_;
+    std::vector<int> owner_;
+
+    bool inside(int x, int y) const {
+        return
+            x >= 0 && x < w_ &&
+            y >= 0 && y < h_;
+    }
+
+    int index(int x, int y) const {
+        return y * w_ + x;
+    }
+
+    static float colorDistance(
+        const Pixel& a,
+        const Pixel& b)
+    {
+        float dr = a.r - b.r;
+        float dg = a.g - b.g;
+        float db = a.b - b.b;
+
+        return std::sqrt(
+            dr * dr +
+            dg * dg +
+            db * db);
+    }
+
+    float equalityEnergy(
+        int px, int py,
+        int qx, int qy,
+        int seedX, int seedY,
+        int layer,
+        const LayerConfig& cfg) const
+    {
+        const Pixel& p = pixels_[index(px, py)];
+        const Pixel& q = pixels_[index(qx, qy)];
+
+        float colour =
+            colorDistance(p, q);
+
+        float dx =
+            static_cast<float>(qx - seedX);
+        float dy =
+            static_cast<float>(qy - seedY);
+
+        float distance =
+            std::sqrt(dx * dx + dy * dy);
+
+        // A small inheritance cost:
+        // deeper layers know that they are farther
+        // from the original pixel.
+        float inheritance =
+            static_cast<float>(layer);
+
+        return
+            cfg.colorWeight * colour +
+            cfg.distanceWeight * distance +
+            cfg.parentWeight * inheritance;
+    }
+};
