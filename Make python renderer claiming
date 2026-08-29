@@ -1,0 +1,400 @@
+"""
+pixel_deform_shadowpaths.py
+
+Core ideas:
+- Represent deformation as a mapping from output pixel (x,y) -> source coords (u,v)
+- Sample source image at (u,v) with bilinear interpolation
+- Generate many deformation fields (swirl, ripple, oblique shear, turbulence)
+- Compute "shadow paths" from a height map (derived from image luminance or provided)
+  by ray marching along a light direction on the height field
+
+Dependencies:
+  pip install numpy pillow
+"""
+
+from __future__ import annotations
+
+import math
+import os
+from dataclasses import dataclass
+from typing import Callable, Optional, Tuple
+
+import numpy as np
+from PIL import Image
+
+# ----------------------------
+# Utilities
+# ----------------------------
+
+def to_float_image(img: Image.Image) -> np.ndarray:
+    """PIL -> float32 array in [0,1], shape (H,W,3)"""
+    img = img.convert("RGB")
+    a = np.asarray(img, dtype=np.float32) / 255.0
+    return a
+
+def from_float_image(a: np.ndarray) -> Image.Image:
+    """float32 [0,1] -> PIL"""
+    a = np.clip(a * 255.0 + 0.5, 0, 255).astype(np.uint8)
+    return Image.fromarray(a, mode="RGB")
+
+def luminance(rgb: np.ndarray) -> np.ndarray:
+    """Perceptual-ish luminance from RGB in [0,1]. Output (H,W)."""
+    return (0.2126 * rgb[..., 0] + 0.7152 * rgb[..., 1] + 0.0722 * rgb[..., 2]).astype(np.float32)
+
+def make_grid(h: int, w: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Return X,Y grids in pixel coordinates with shape (H,W)."""
+    y = np.arange(h, dtype=np.float32)
+    x = np.arange(w, dtype=np.float32)
+    X, Y = np.meshgrid(x, y)
+    return X, Y
+
+def bilinear_sample(img: np.ndarray, u: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """
+    Bilinear sampling of img at float coords (u,v).
+    img: (H,W,C)
+    u,v: (H,W) float coords in source pixel space.
+    Returns: (H,W,C)
+    """
+    h, w, c = img.shape
+
+    u0 = np.floor(u).astype(np.int32)
+    v0 = np.floor(v).astype(np.int32)
+    u1 = u0 + 1
+    v1 = v0 + 1
+
+    # clamp
+    u0 = np.clip(u0, 0, w - 1)
+    u1 = np.clip(u1, 0, w - 1)
+    v0 = np.clip(v0, 0, h - 1)
+    v1 = np.clip(v1, 0, h - 1)
+
+    fu = (u - u0).astype(np.float32)
+    fv = (v - v0).astype(np.float32)
+
+    Ia = img[v0, u0]  # top-left
+    Ib = img[v0, u1]  # top-right
+    Ic = img[v1, u0]  # bottom-left
+    Id = img[v1, u1]  # bottom-right
+
+    wa = (1 - fu) * (1 - fv)
+    wb = fu * (1 - fv)
+    wc = (1 - fu) * fv
+    wd = fu * fv
+
+    out = (Ia * wa[..., None] + Ib * wb[..., None] + Ic * wc[..., None] + Id * wd[..., None])
+    return out
+
+# ----------------------------
+# Deformation fields
+# ----------------------------
+
+@dataclass
+class DeformParams:
+    strength: float = 20.0      # pixels
+    frequency: float = 0.015    # cycles per pixel-ish
+    swirl: float = 1.0          # swirl intensity
+    shear_x: float = 0.2        # oblique shear in x from y
+    shear_y: float = 0.0        # oblique shear in y from x
+    perspective: float = 0.0    # pseudo-perspective push
+    seed: int = 1
+
+def deform_field_swirl(X: np.ndarray, Y: np.ndarray, cx: float, cy: float, swirl: float) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Swirl around (cx,cy): rotate pixels by angle proportional to radius.
+    """
+    dx = X - cx
+    dy = Y - cy
+    r = np.sqrt(dx * dx + dy * dy) + 1e-6
+    # angle grows with radius (tunable)
+    ang = swirl * (r / (max(X.shape) + 1e-6)) * 2.0 * math.pi
+    ca = np.cos(ang).astype(np.float32)
+    sa = np.sin(ang).astype(np.float32)
+    u = cx + dx * ca - dy * sa
+    v = cy + dx * sa + dy * ca
+    return u, v
+
+def deform_field_ripple(X: np.ndarray, Y: np.ndarray, strength: float, freq: float, angle: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Ripple displacement along a direction: oblique/angled wave.
+    """
+    # project onto an axis
+    ca = math.cos(angle)
+    sa = math.sin(angle)
+    t = X * ca + Y * sa
+    disp = strength * np.sin(2.0 * math.pi * freq * t).astype(np.float32)
+    # displace orthogonal to wave direction (oblique feel)
+    nx = -sa
+    ny = ca
+    u = X + disp * nx
+    v = Y + disp * ny
+    return u, v
+
+def deform_field_oblique_shear(X: np.ndarray, Y: np.ndarray, shear_x: float, shear_y: float) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Simple affine oblique shear:
+      u = x + shear_x*(y - cy)
+      v = y + shear_y*(x - cx)
+    """
+    h, w = X.shape
+    cx = (w - 1) * 0.5
+    cy = (h - 1) * 0.5
+    u = X + shear_x * (Y - cy)
+    v = Y + shear_y * (X - cx)
+    return u, v
+
+def _hash_noise_2d(h: int, w: int, seed: int) -> np.ndarray:
+    """
+    Fast deterministic-ish noise in [0,1). Not Perlin; good enough for turbulence fields.
+    """
+    rng = np.random.default_rng(seed)
+    return rng.random((h, w), dtype=np.float32)
+
+def deform_field_turbulence(X: np.ndarray, Y: np.ndarray, strength: float, seed: int = 1, octaves: int = 3) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Multi-octave random field to approximate turbulence. Produces (du,dv) then u=X+du, v=Y+dv.
+    """
+    h, w = X.shape
+    du = np.zeros((h, w), dtype=np.float32)
+    dv = np.zeros((h, w), dtype=np.float32)
+
+    amp = 1.0
+    total_amp = 0.0
+    for i in range(octaves):
+        # coarse random grids then upsample with nearest (cheap) and smooth via simple averaging
+        scale = 2 ** i
+        gh = max(2, h // (8 * scale))
+        gw = max(2, w // (8 * scale))
+        base_u = _hash_noise_2d(gh, gw, seed + 17 * i)
+        base_v = _hash_noise_2d(gh, gw, seed + 29 * i)
+
+        # upsample by repeating
+        up_u = np.repeat(np.repeat(base_u, math.ceil(h / gh), axis=0), math.ceil(w / gw), axis=1)[:h, :w]
+        up_v = np.repeat(np.repeat(base_v, math.ceil(h / gh), axis=0), math.ceil(w / gw), axis=1)[:h, :w]
+
+        # center to [-0.5,0.5]
+        up_u = up_u - 0.5
+        up_v = up_v - 0.5
+
+        du += (up_u * amp).astype(np.float32)
+        dv += (up_v * amp).astype(np.float32)
+
+        total_amp += amp
+        amp *= 0.5
+
+    du = (du / max(total_amp, 1e-6)) * strength
+    dv = (dv / max(total_amp, 1e-6)) * strength
+    return X + du, Y + dv
+
+def apply_deform_chain(
+    img: np.ndarray,
+    fields: Tuple[Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]], ...],
+) -> np.ndarray:
+    """
+    Compose multiple deformations in "pull" form:
+      start with output grid (X,Y), map through fields to (u,v) in source.
+    """
+    h, w, _ = img.shape
+    X, Y = make_grid(h, w)
+    u, v = X, Y
+    for f in fields:
+        u, v = f(u, v)
+    return bilinear_sample(img, u, v)
+
+# ----------------------------
+# Shadow paths: height-field shadow map
+# ----------------------------
+
+@dataclass
+class ShadowParams:
+    light_dir_xy: Tuple[float, float] = (-1.0, -0.6)  # direction shadows travel in image plane
+    light_slope: float = 0.8   # height gain per pixel along ray (higher => shorter shadows)
+    steps: int = 64            # ray-march steps
+    step_px: float = 1.0       # step in pixels
+    ambient: float = 0.35      # baseline light
+    shadow_strength: float = 0.8  # how dark shadows get
+    height_scale: float = 30.0    # height units from normalized height map
+
+def compute_shadow_map(height01: np.ndarray, sp: ShadowParams) -> np.ndarray:
+    """
+    Ray-march shadowing on a height field:
+    For each pixel, march toward light source (opposite shadow direction) and see if any point occludes.
+
+    height01: (H,W) in [0,1]
+    returns shadow factor in [0,1] (1 = fully lit, 0 = fully shadowed)
+    """
+    h, w = height01.shape
+    H = (height01.astype(np.float32) * sp.height_scale).astype(np.float32)
+
+    # normalize direction
+    lx, ly = sp.light_dir_xy
+    norm = math.sqrt(lx * lx + ly * ly) + 1e-6
+    lx /= norm
+    ly /= norm
+
+    # march "toward light": from point backwards along (-shadow travel) = -light_dir_xy
+    # Here we interpret light_dir_xy as direction *from* light *toward* objects (shadow goes same direction).
+    # To check occluders between light and point, we march opposite that.
+    dx = -lx * sp.step_px
+    dy = -ly * sp.step_px
+
+    X, Y = make_grid(h, w)
+
+    # current point height
+    h0 = H
+
+    occluded = np.zeros((h, w), dtype=np.float32)
+
+    # March: any sample with height > (h0 + slope * dist) blocks
+    # This is a simple “horizon” test.
+    for i in range(1, sp.steps + 1):
+        dist = i * sp.step_px
+        u = X + dx * i
+        v = Y + dy * i
+
+        # sample height with bilinear (using 1-channel trick)
+        # build temporary 3-channel to reuse sampler cheaply
+        H3 = np.repeat(H[..., None], 3, axis=2)
+        sample = bilinear_sample(H3, u, v)[..., 0]
+
+        # line height at this distance
+        line = h0 + sp.light_slope * dist
+        hit = (sample > line).astype(np.float32)
+        occluded = np.maximum(occluded, hit)
+
+    # map to light factor
+    lit = 1.0 - occluded * sp.shadow_strength
+    lit = np.clip(sp.ambient + (1.0 - sp.ambient) * lit, 0.0, 1.0)
+    return lit.astype(np.float32)
+
+def apply_shadow(img: np.ndarray, shadow_factor: np.ndarray) -> np.ndarray:
+    """
+    Multiply image by shadow factor (broadcast).
+    shadow_factor: (H,W) in [0,1]
+    """
+    return np.clip(img * shadow_factor[..., None], 0.0, 1.0).astype(np.float32)
+
+# ----------------------------
+# Concurrency: chunked warp
+# ----------------------------
+
+def _warp_chunk(args):
+    img, u, v, y0, y1 = args
+    return y0, bilinear_sample(img, u[y0:y1], v[y0:y1])
+
+def bilinear_sample_parallel(img: np.ndarray, u: np.ndarray, v: np.ndarray, workers: Optional[int] = None, chunk_rows: int = 128) -> np.ndarray:
+    """
+    Parallel bilinear sample by splitting rows. Useful for big images.
+    """
+    import multiprocessing as mp
+
+    h = img.shape[0]
+    tasks = []
+    for y0 in range(0, h, chunk_rows):
+        y1 = min(h, y0 + chunk_rows)
+        tasks.append((img, u, v, y0, y1))
+
+    if workers is None:
+        workers = max(1, os.cpu_count() or 1)
+
+    out = np.empty_like(img, dtype=np.float32)
+    if workers <= 1 or len(tasks) == 1:
+        for t in tasks:
+            y0, part = _warp_chunk(t)
+            out[y0:y0 + part.shape[0]] = part
+        return out
+
+    with mp.Pool(processes=workers) as pool:
+        for y0, part in pool.imap_unordered(_warp_chunk, tasks):
+            out[y0:y0 + part.shape[0]] = part
+    return out
+
+def apply_deform_chain_parallel(
+    img: np.ndarray,
+    fields: Tuple[Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]], ...],
+    workers: Optional[int] = None,
+    chunk_rows: int = 128,
+) -> np.ndarray:
+    h, w, _ = img.shape
+    X, Y = make_grid(h, w)
+    u, v = X, Y
+    for f in fields:
+        u, v = f(u, v)
+    return bilinear_sample_parallel(img, u, v, workers=workers, chunk_rows=chunk_rows)
+
+# ----------------------------
+# Demo pipeline
+# ----------------------------
+
+def demo(
+    input_path: str,
+    output_path: str,
+    dp: DeformParams = DeformParams(),
+    sp: ShadowParams = ShadowParams(),
+    use_parallel: bool = False,
+):
+    img_pil = Image.open(input_path)
+    img = to_float_image(img_pil)
+    h, w, _ = img.shape
+    cx, cy = (w - 1) * 0.5, (h - 1) * 0.5
+
+    # Height from luminance (you can replace with a real displacement/height map)
+    height01 = np.clip(luminance(img), 0.0, 1.0)
+
+    # Build deformation chain: turbulence + ripple (oblique) + swirl + shear
+    def f_turb(u, v):
+        # turbulence around current coords: we treat u,v as a grid-like field
+        # to keep it simple, we regenerate a turbulence field in output space
+        X, Y = make_grid(h, w)
+        return deform_field_turbulence(X, Y, strength=dp.strength * 0.6, seed=dp.seed, octaves=4)
+
+    def f_ripple(u, v):
+        # use u,v as the grid to create angled ripple in the already-warped coordinate system
+        return deform_field_ripple(u, v, strength=dp.strength * 0.35, freq=dp.frequency, angle=0.85)
+
+    def f_swirl(u, v):
+        return deform_field_swirl(u, v, cx=cx, cy=cy, swirl=dp.swirl)
+
+    def f_shear(u, v):
+        return deform_field_oblique_shear(u, v, shear_x=dp.shear_x, shear_y=dp.shear_y)
+
+    fields = (f_turb, f_ripple, f_swirl, f_shear)
+
+    if use_parallel:
+        warped = apply_deform_chain_parallel(img, fields, workers=None, chunk_rows=128)
+    else:
+        warped = apply_deform_chain(img, fields)
+
+    # Shadow paths computed from height map, then applied to warped result
+    shadow = compute_shadow_map(height01, sp)
+    shaded = apply_shadow(warped, shadow)
+
+    out = from_float_image(shaded)
+    out.save(output_path)
+    print(f"Saved: {output_path}")
+
+if __name__ == "__main__":
+    # Example usage:
+    #   python pixel_deform_shadowpaths.py input.jpg output.png
+    import sys
+    if len(sys.argv) < 3:
+        print("Usage: python pixel_deform_shadowpaths.py <input_image> <output_image>")
+        raise SystemExit(2)
+
+    dp = DeformParams(
+        strength=24.0,
+        frequency=0.012,
+        swirl=1.4,
+        shear_x=0.22,
+        shear_y=-0.05,
+        seed=7,
+    )
+    sp = ShadowParams(
+        light_dir_xy=(-1.0, -0.35),
+        light_slope=0.9,
+        steps=72,
+        step_px=1.0,
+        ambient=0.40,
+        shadow_strength=0.85,
+        height_scale=28.0,
+    )
+    demo(sys.argv[1], sys.argv[2], dp=dp, sp=sp, use_parallel=True)
