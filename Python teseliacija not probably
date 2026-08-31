@@ -1,0 +1,57 @@
+import math
+
+def clamp(x, lo, hi):
+    return max(lo, min(x, hi))
+
+def distance_tessellation(distance,
+                          near_distance=2.0,
+                          far_distance=100.0,
+                          min_tess=1.0,
+                          max_tess=32.0):
+    """
+    High tessellation nearby, low tessellation far away.
+    """
+
+    # Normalize camera distance into 0..1
+    u = (distance - near_distance) / (far_distance - near_distance)
+    u = clamp(u, 0.0, 1.0)
+
+    # Smooth transition prevents obvious LOD popping.
+    u = u * u * (3.0 - 2.0 * u)
+
+    return max_tess + (min_tess - max_tess) * u
+
+
+def summed_tessellation(distance, influences):
+    """
+    influences might represent:
+      curvature
+      displacement
+      silhouette importance
+      material detail
+    """
+
+    base = distance_tessellation(distance)
+
+    # Sum detail requirements.
+    detail_sum = sum(influences)
+
+    # Don't allow the sum to explode.
+    detail_gain = clamp(detail_sum, 0.0, 2.0)
+
+    tess = base * (1.0 + detail_gain)
+
+    return clamp(tess, 1.0, 64.0)
+
+
+for d in [1, 5, 10, 25, 50, 100, 200]:
+    tess = summed_tessellation(
+        d,
+        influences=[
+            0.20,   # curvature
+            0.15,   # displacement
+            0.10    # silhouette
+        ]
+    )
+
+    print(f"distance={d:4}  tess={tess:6.2f}")
