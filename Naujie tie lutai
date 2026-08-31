@@ -1,0 +1,128 @@
+#version 460 core
+
+layout(local_size_x = 128) in;
+
+struct Meshlet
+{
+    vec4 bounds;
+    vec4 cone;
+
+    uvec4 draw;
+    uvec4 metadata;
+};
+
+layout(std430, binding = 15)
+readonly buffer Meshlets
+{
+    Meshlet meshlets[];
+};
+
+layout(std430, binding = 16)
+writeonly buffer VisibleMeshlets
+{
+    uvec2 visible[];
+};
+
+layout(binding = 0, offset = 0)
+uniform atomic_uint visibleCount;
+
+uniform vec3 uCameraPosition;
+
+uniform vec4 uFrustumPlanes[6];
+
+uniform uint uFirstMeshlet;
+uniform uint uMeshletCount;
+
+bool sphereInsideFrustum(
+    vec3 center,
+    float radius)
+{
+    for (int i = 0; i < 6; ++i)
+    {
+        vec4 plane =
+            uFrustumPlanes[i];
+
+        float distance =
+            dot(
+                plane.xyz,
+                center
+            )
+            +
+            plane.w;
+
+        if (distance < -radius)
+            return false;
+    }
+
+    return true;
+}
+
+bool coneVisible(
+    vec3 center,
+    vec3 axis,
+    float cutoff)
+{
+    vec3 toCamera =
+        normalize(
+            uCameraPosition -
+            center
+        );
+
+    float facing =
+        dot(
+            axis,
+            toCamera
+        );
+
+    return facing >= cutoff;
+}
+
+void main()
+{
+    uint localIndex =
+        gl_GlobalInvocationID.x;
+
+    if (localIndex >= uMeshletCount)
+        return;
+
+    uint meshletIndex =
+        uFirstMeshlet +
+        localIndex;
+
+    Meshlet m =
+        meshlets[meshletIndex];
+
+    vec3 center =
+        m.bounds.xyz;
+
+    float radius =
+        m.bounds.w;
+
+    if (
+        !sphereInsideFrustum(
+            center,
+            radius
+        )
+    )
+        return;
+
+    if (
+        !coneVisible(
+            center,
+            m.cone.xyz,
+            m.cone.w
+        )
+    )
+        return;
+
+    uint outputIndex =
+        atomicCounterIncrement(
+            visibleCount
+        );
+
+    visible[outputIndex] =
+        uvec2(
+            meshletIndex,
+            m.metadata.x
+        );
+}
