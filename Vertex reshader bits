@@ -1,0 +1,49 @@
+vec3 ReshapeVortexVertex(
+    vec3 localP,
+    Instance instance,
+    GPUVortex vortex,
+    float age)
+{
+    vec3 P =
+        (instance.model *
+         vec4(localP, 1.0)).xyz;
+
+    return ApplyRotationalVortex(
+        P,
+        vortex,
+        age);
+}
+
+
+vec3 ReshapeVortexNormal(
+    vec3 N,
+    vec3 P,
+    GPUVortex vortex,
+    float age)
+{
+    vec3 axis =
+        normalize(
+            vortex.axisStrength.xyz);
+
+    VortexSpace space =
+        BuildVortexSpace(
+            P,
+            vortex.originRadius.xyz,
+            axis);
+
+    float damp =
+        ResolveVortexDamping(
+            space,
+            vortex,
+            age);
+
+    float angle =
+        vortex.axisStrength.w *
+        damp;
+
+    return normalize(
+        RotateAroundAxis(
+            N,
+            axis,
+            angle));
+}
