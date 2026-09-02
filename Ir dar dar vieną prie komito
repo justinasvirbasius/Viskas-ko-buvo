@@ -1,0 +1,11 @@
+large enough
+→ good vertex reuse
+
+small enough
+→ good culling granularity
+
+
+cost =
+    vertexDuplication * duplicationWeight
+  + boundingVolumeWaste * cullingWeight
+  + meshletCount * metadataWeight;
