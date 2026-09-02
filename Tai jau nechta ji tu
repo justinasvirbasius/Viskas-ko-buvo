@@ -1,0 +1,47 @@
+class MagsSystem
+{
+public:
+    void initialize(UIRenderer& renderer);
+    void shutdown();
+
+    void beginFrame(
+        const MagsInput& input,
+        glm::vec2 viewportSize,
+        float deltaTime);
+
+    void buildWorkspace();
+
+    void endFrame();
+
+    MagsContext& ui()
+    {
+        return m_context;
+    }
+
+private:
+    MagsContext m_context;
+    DockManager m_docking;
+    CommandRegistry m_commands;
+    WindowRegistry m_windows;
+};
+
+
+struct MagsWindow
+{
+    mags::ID id = 0;
+
+    std::string title;
+
+    UIRect rect;
+
+    bool open = true;
+    bool collapsed = false;
+
+    bool movable = true;
+    bool resizable = true;
+    bool dockable = true;
+
+    uint32_t dockNode = UINT32_MAX;
+
+    float scrollY = 0.0f;
+};
