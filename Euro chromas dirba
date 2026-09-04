@@ -1,0 +1,22 @@
+void emitVisibleObject(
+    uint objectID,
+    ObjectData object,
+    uint lod)
+{
+    uint slot =
+        atomicAdd(
+            visibleCount,
+            1
+        );
+
+    if (slot >= maxVisible)
+        return;
+
+    visibleObjects[slot] =
+        VisibleInstance(
+            objectID,
+            object.mesh,
+            lod,
+            object.material
+        );
+}
