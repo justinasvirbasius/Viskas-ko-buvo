@@ -1,0 +1,199 @@
+#version 460 core
+
+// Leaf classifier: one 8x8 workgroup examines one 16x16 tile. Each 2x2 lane
+// quad owns a 4x4 packet; each lane evaluates a 2x2 microcell. The 64 lanes
+// reduce 256 pixel proofs into one TileRecord.
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D currentColor;
+layout(binding = 1) uniform sampler2D currentDepth;
+layout(binding = 2) uniform sampler2D historyDepth;
+layout(binding = 3) uniform sampler2D motionVectors;
+layout(binding = 4) uniform sampler2D reactiveMask;
+layout(binding = 5) uniform usampler2D currentIdentity;
+layout(binding = 6) uniform usampler2D historyIdentity;
+layout(binding = 7) uniform sampler2D confidenceSurface;
+layout(binding = 8) uniform usampler2D nativeRefineMask;
+layout(binding = 9) uniform sampler2D primaryCost;   // ALU, texture, branch, overdraw
+layout(binding = 10) uniform sampler2D secondaryCost; // memory, post, reserved, reserved
+
+struct TileRecord {
+    uvec4 location; // tile x, tile y, valid pixels, ResolutionClass
+    uvec4 proof;    // refine, identity mismatch, invalid, dominant CostClass
+    vec4 quality;   // min confidence, max depth error, max motion px, mean gradient
+    vec4 costA;     // ALU, memory, branch, texture
+    vec4 costB;     // overdraw, post, variance sum, reactive ratio
+};
+
+layout(std430, binding = 0) writeonly buffer TileRecords {
+    TileRecord records[];
+};
+
+layout(std140, binding = 11) uniform ClassificationConfig {
+    uvec2 outputExtent;
+    uvec2 tileGridExtent;
+    uint seedGeneration;
+    uint historySeedGeneration;
+    uint forceFull;
+    uint _pad0;
+    float relayMinimumConfidence;
+    float relayMaximumDepthError;
+    float selectiveMinimumConfidence;
+    float selectiveMaximumDepthError;
+    uint selectiveMaximumRefinePixels;
+    uint selectiveMaximumIdentityMismatches;
+    uvec2 _pad1;
+} config;
+
+const uint CLASS_RELAY = 0u;
+const uint CLASS_SELECTIVE = 1u;
+const uint CLASS_NATIVE = 2u;
+const uint CLASS_FULL = 3u;
+const float QUANTIZE = 1024.0;
+
+shared uint sampleCount;
+shared uint refineCount;
+shared uint mismatchCount;
+shared uint invalidCount;
+shared uint reactiveCount;
+shared uint minimumConfidenceBits;
+shared uint maximumDepthBits;
+shared uint maximumMotionBits;
+shared uint gradientSum;
+shared uint varianceSum;
+shared uint costSum[6];
+
+float luma(vec3 color) {
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+uint quantize(float value) {
+    return uint(round(clamp(value, 0.0, 4095.0) * QUANTIZE));
+}
+
+void main() {
+    uint lane = gl_LocalInvocationIndex;
+    if (lane == 0u) {
+        sampleCount = 0u;
+        refineCount = 0u;
+        mismatchCount = 0u;
+        invalidCount = 0u;
+        reactiveCount = 0u;
+        minimumConfidenceBits = floatBitsToUint(1.0);
+        maximumDepthBits = floatBitsToUint(0.0);
+        maximumMotionBits = floatBitsToUint(0.0);
+        gradientSum = 0u;
+        varianceSum = 0u;
+    }
+    if (lane < 6u) costSum[lane] = 0u;
+    barrier();
+
+    ivec2 tileOrigin = ivec2(gl_WorkGroupID.xy) * 16;
+    ivec2 packetOrigin = tileOrigin + ivec2(gl_LocalInvocationID.xy) * 2;
+    for (int py = 0; py < 2; ++py) {
+        for (int px = 0; px < 2; ++px) {
+            ivec2 pixel = packetOrigin + ivec2(px, py);
+            if (any(greaterThanEqual(pixel, ivec2(config.outputExtent)))) continue;
+
+            vec2 uv = (vec2(pixel) + 0.5) / vec2(config.outputExtent);
+            vec2 motion = textureLod(motionVectors, uv, 0.0).xy;
+            vec2 previousUv = uv + motion;
+            bool onScreen = all(greaterThanEqual(previousUv, vec2(0.0))) &&
+                            all(lessThanEqual(previousUv, vec2(1.0)));
+
+            float confidence = texelFetch(confidenceSurface, pixel, 0).r;
+            float depth = textureLod(currentDepth, uv, 0.0).r;
+            float previousDepth = onScreen ? textureLod(historyDepth, previousUv, 0.0).r : 1.0;
+            float depthError = abs(depth - previousDepth) /
+                               max(max(abs(depth), abs(previousDepth)), 1e-4);
+            uvec2 identity = textureLod(currentIdentity, uv, 0.0).rg;
+            uvec2 previousIdentity = onScreen
+                ? textureLod(historyIdentity, previousUv, 0.0).rg
+                : uvec2(0xffffffffu);
+            bool identityMatches = onScreen && all(equal(identity, previousIdentity));
+            float reactive = textureLod(reactiveMask, uv, 0.0).r;
+            bool refine = texelFetch(nativeRefineMask, pixel, 0).r != 0u;
+
+            vec3 color = textureLod(currentColor, uv, 0.0).rgb;
+            vec2 outputTexel = 1.0 / vec2(config.outputExtent);
+            float centerLuma = luma(color);
+            float gradient = abs(centerLuma - luma(textureLod(
+                                 currentColor, min(uv + vec2(outputTexel.x, 0.0), vec2(1.0)), 0.0).rgb)) +
+                             abs(centerLuma - luma(textureLod(
+                                 currentColor, min(uv + vec2(0.0, outputTexel.y), vec2(1.0)), 0.0).rgb));
+            float variance = gradient * gradient;
+            vec4 primary = max(textureLod(primaryCost, uv, 0.0), vec4(0.0));
+            vec2 secondary = max(textureLod(secondaryCost, uv, 0.0).rg, vec2(0.0));
+
+            bool finiteEvidence = !isnan(confidence) && !isinf(confidence) &&
+                                  !isnan(depthError) && !isinf(depthError) &&
+                                  !any(isnan(motion)) && !any(isinf(motion)) &&
+                                  !isnan(gradient) && !isinf(gradient) &&
+                                  !any(isnan(primary)) && !any(isinf(primary)) &&
+                                  !any(isnan(secondary)) && !any(isinf(secondary));
+            if (!finiteEvidence) {
+                confidence = 0.0;
+                depthError = 1.0;
+                motion = vec2(0.0);
+                gradient = 0.0;
+                variance = 0.0;
+                primary = vec4(0.0);
+                secondary = vec2(0.0);
+                refine = true;
+                atomicAdd(invalidCount, 1u);
+            }
+
+            atomicAdd(sampleCount, 1u);
+            if (refine) atomicAdd(refineCount, 1u);
+            if (!identityMatches) atomicAdd(mismatchCount, 1u);
+            if (reactive > 0.05) atomicAdd(reactiveCount, 1u);
+            atomicMin(minimumConfidenceBits, floatBitsToUint(clamp(confidence, 0.0, 1.0)));
+            atomicMax(maximumDepthBits, floatBitsToUint(max(depthError, 0.0)));
+            atomicMax(maximumMotionBits,
+                      floatBitsToUint(length(motion * vec2(config.outputExtent))));
+            atomicAdd(gradientSum, quantize(gradient));
+            atomicAdd(varianceSum, quantize(variance));
+            atomicAdd(costSum[0], quantize(primary.x));
+            atomicAdd(costSum[1], quantize(secondary.x));
+            atomicAdd(costSum[2], quantize(primary.z));
+            atomicAdd(costSum[3], quantize(primary.y));
+            atomicAdd(costSum[4], quantize(primary.w));
+            atomicAdd(costSum[5], quantize(secondary.y));
+        }
+    }
+    barrier();
+
+    if (lane == 0u) {
+        float minimumConfidence = uintBitsToFloat(minimumConfidenceBits);
+        float maximumDepth = uintBitsToFloat(maximumDepthBits);
+        uint classification = CLASS_NATIVE;
+        bool full = config.forceFull != 0u || config.seedGeneration == 0u ||
+                    config.seedGeneration != config.historySeedGeneration || invalidCount != 0u;
+        bool relay = refineCount == 0u && mismatchCount == 0u &&
+                     minimumConfidence >= config.relayMinimumConfidence &&
+                     maximumDepth <= config.relayMaximumDepthError;
+        bool selective = refineCount <= config.selectiveMaximumRefinePixels &&
+                         mismatchCount <= config.selectiveMaximumIdentityMismatches &&
+                         minimumConfidence >= config.selectiveMinimumConfidence &&
+                         maximumDepth <= config.selectiveMaximumDepthError;
+        if (full) classification = CLASS_FULL;
+        else if (relay) classification = CLASS_RELAY;
+        else if (selective) classification = CLASS_SELECTIVE;
+
+        uint dominant = 0u;
+        for (uint i = 1u; i < 6u; ++i)
+            if (costSum[i] > costSum[dominant]) dominant = i;
+        float inverseSamples = 1.0 / float(max(sampleCount, 1u));
+        uint recordIndex = gl_WorkGroupID.y * config.tileGridExtent.x + gl_WorkGroupID.x;
+        records[recordIndex] = TileRecord(
+            uvec4(gl_WorkGroupID.xy, sampleCount, classification),
+            uvec4(refineCount, mismatchCount, invalidCount, dominant),
+            vec4(minimumConfidence, maximumDepth, uintBitsToFloat(maximumMotionBits),
+                 float(gradientSum) / QUANTIZE * inverseSamples),
+            vec4(float(costSum[0]), float(costSum[1]), float(costSum[2]), float(costSum[3])) /
+                 QUANTIZE,
+            vec4(float(costSum[4]) / QUANTIZE, float(costSum[5]) / QUANTIZE,
+                 float(varianceSum) / QUANTIZE * inverseSamples,
+                 float(reactiveCount) * inverseSamples));
+    }
+}
