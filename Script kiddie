@@ -1,0 +1,7 @@
+struct ExecutionRoute {
+    uint32_t currentStage;
+    uint32_t probableNext[8];
+    float probability[8];
+
+    size_t workingSetBudget;
+};
