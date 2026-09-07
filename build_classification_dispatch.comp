@@ -1,0 +1,66 @@
+#version 460 core
+
+// Final governor: converts compact queue depths into indirect dispatch commands
+// and escalates excessive native-equivalent pressure to a FULL frame.
+layout(local_size_x = 1) in;
+
+layout(std430, binding = 1) readonly buffer RelayQueue {
+    uint relayCount; uint relayOverflow; uvec2 _relayPad; uvec4 relayTasks[];
+};
+layout(std430, binding = 2) readonly buffer SelectiveQueue {
+    uint selectiveCount; uint selectiveOverflow; uvec2 _selectivePad; uvec4 selectiveTasks[];
+};
+layout(std430, binding = 3) readonly buffer NativeQueue {
+    uint nativeCount; uint nativeOverflow; uvec2 _nativePad; uvec4 nativeTasks[];
+};
+layout(std430, binding = 4) readonly buffer FullQueue {
+    uint fullCount; uint fullOverflow; uvec2 _fullPad; uvec4 fullTasks[];
+};
+layout(std430, binding = 6) buffer ClassificationSummary {
+    uint totalTiles;
+    uint classCounts[4];
+    uint totalPixels;
+    uint nativeEquivalentPixels;
+    uint fullRequired;
+    uint saturatedUnits;
+    uint rebalancedTiles;
+    uint costTotals[6];
+    uint hotLane;
+    uint hotCost;
+} summary;
+layout(std430, binding = 7) writeonly buffer IndirectDispatches {
+    // Four commands at a 16-byte stride; xyz match DispatchComputeIndirectCommand.
+    uvec4 command[4];
+} dispatches;
+
+layout(std140, binding = 13) uniform DispatchConfig {
+    uvec4 queueCapacity;
+    uint threadsPerGroup;
+    float frameFullNativeEquivalentRatio;
+    uvec2 _pad0;
+} config;
+
+uint groups(uint count, uint capacity) {
+    uint safeCount = min(count, capacity);
+    uint width = max(config.threadsPerGroup, 1u);
+    return (safeCount + width - 1u) / width;
+}
+
+void main() {
+    uint counts[4] = uint[4](relayCount, selectiveCount, nativeCount, fullCount);
+    for (uint i = 0u; i < 4u; ++i)
+        dispatches.command[i] = uvec4(groups(counts[i], config.queueCapacity[i]), 1u, 1u, 0u);
+
+    float nativeRatio = summary.totalPixels == 0u ? 1.0 :
+        float(summary.nativeEquivalentPixels) / float(summary.totalPixels);
+    if (fullCount != 0u || relayOverflow != 0u || nativeOverflow != 0u ||
+        fullOverflow != 0u || nativeRatio >= config.frameFullNativeEquivalentRatio)
+        summary.fullRequired = 1u;
+
+    summary.hotLane = 0u;
+    for (uint i = 1u; i < 4u; ++i)
+        if (counts[i] > counts[summary.hotLane]) summary.hotLane = i;
+    summary.hotCost = 0u;
+    for (uint i = 1u; i < 6u; ++i)
+        if (summary.costTotals[i] > summary.costTotals[summary.hotCost]) summary.hotCost = i;
+}

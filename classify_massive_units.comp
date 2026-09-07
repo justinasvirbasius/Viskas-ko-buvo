@@ -1,0 +1,190 @@
+#version 460 core
+
+// Massive classifier: one 8x8 workgroup reduces 64 leaf tiles, covering a
+// 128x128 pixel unit, and compacts tile work into four execution lanes.
+layout(local_size_x = 8, local_size_y = 8) in;
+
+struct TileRecord {
+    uvec4 location;
+    uvec4 proof;
+    vec4 quality;
+    vec4 costA;
+    vec4 costB;
+};
+
+struct MassiveUnitRecord {
+    uvec4 location; // unit x, unit y, valid tiles, highest ResolutionClass
+    uvec4 classCounts;
+    uvec4 pressure; // dominant CostClass, saturated, native equivalent px, total px
+    vec4 quality;   // min confidence, max depth, max motion, mean gradient
+};
+
+layout(std430, binding = 0) buffer TileRecords { TileRecord records[]; };
+layout(std430, binding = 1) buffer RelayQueue {
+    uint relayCount; uint relayOverflow; uvec2 _relayPad; uvec4 relayTasks[];
+};
+layout(std430, binding = 2) buffer SelectiveQueue {
+    uint selectiveCount; uint selectiveOverflow; uvec2 _selectivePad; uvec4 selectiveTasks[];
+};
+layout(std430, binding = 3) buffer NativeQueue {
+    uint nativeCount; uint nativeOverflow; uvec2 _nativePad; uvec4 nativeTasks[];
+};
+layout(std430, binding = 4) buffer FullQueue {
+    uint fullCount; uint fullOverflow; uvec2 _fullPad; uvec4 fullTasks[];
+};
+layout(std430, binding = 5) writeonly buffer MassiveUnits { MassiveUnitRecord units[]; };
+layout(std430, binding = 6) buffer ClassificationSummary {
+    uint totalTiles;
+    uint classCounts[4];
+    uint totalPixels;
+    uint nativeEquivalentPixels;
+    uint fullRequired;
+    uint saturatedUnits;
+    uint rebalancedTiles;
+    uint costTotals[6];
+    uint hotLane;
+    uint hotCost;
+} summary;
+
+layout(std140, binding = 12) uniform MassiveConfig {
+    uvec2 tileGridExtent;
+    uvec2 massiveGridExtent;
+    uvec4 queueCapacity; // relay, selective, native, full
+    float unitSaturationRatio;
+    float _pad0;
+    uvec2 _pad1;
+} config;
+
+const uint CLASS_RELAY = 0u;
+const uint CLASS_SELECTIVE = 1u;
+const uint CLASS_NATIVE = 2u;
+const uint CLASS_FULL = 3u;
+const float QUANTIZE = 1024.0;
+
+shared uint validTiles;
+shared uint sharedClassCounts[4];
+shared uint sharedCost[6];
+shared uint sharedPixels;
+shared uint sharedNativeEquivalent;
+shared uint sharedMinConfidence;
+shared uint sharedMaxDepth;
+shared uint sharedMaxMotion;
+shared uint sharedGradient;
+shared uint sharedResolution;
+
+uint quantize(float value) {
+    return uint(round(clamp(value, 0.0, 4095.0) * QUANTIZE));
+}
+
+uint enqueue(uint classification, uvec4 task) {
+    uint slot;
+    if (classification == CLASS_RELAY) {
+        slot = atomicAdd(relayCount, 1u);
+        if (slot < config.queueCapacity.x) { relayTasks[slot] = task; return CLASS_RELAY; }
+        atomicAdd(relayOverflow, 1u);
+        atomicExchange(summary.fullRequired, 1u);
+        return CLASS_FULL;
+    }
+    if (classification == CLASS_SELECTIVE) {
+        slot = atomicAdd(selectiveCount, 1u);
+        if (slot < config.queueCapacity.y) { selectiveTasks[slot] = task; return CLASS_SELECTIVE; }
+        atomicAdd(selectiveOverflow, 1u);
+        atomicAdd(summary.rebalancedTiles, 1u);
+        slot = atomicAdd(nativeCount, 1u);
+        if (slot < config.queueCapacity.z) { nativeTasks[slot] = task; return CLASS_NATIVE; }
+        atomicAdd(nativeOverflow, 1u);
+        atomicExchange(summary.fullRequired, 1u);
+        return CLASS_FULL;
+    }
+    if (classification == CLASS_NATIVE) {
+        slot = atomicAdd(nativeCount, 1u);
+        if (slot < config.queueCapacity.z) { nativeTasks[slot] = task; return CLASS_NATIVE; }
+        atomicAdd(nativeOverflow, 1u);
+        atomicExchange(summary.fullRequired, 1u);
+        return CLASS_FULL;
+    }
+    atomicExchange(summary.fullRequired, 1u);
+    slot = atomicAdd(fullCount, 1u);
+    if (slot < config.queueCapacity.w) fullTasks[slot] = task;
+    else atomicAdd(fullOverflow, 1u);
+    return CLASS_FULL;
+}
+
+void main() {
+    uint lane = gl_LocalInvocationIndex;
+    if (lane == 0u) {
+        validTiles = 0u;
+        sharedPixels = 0u;
+        sharedNativeEquivalent = 0u;
+        sharedMinConfidence = floatBitsToUint(1.0);
+        sharedMaxDepth = floatBitsToUint(0.0);
+        sharedMaxMotion = floatBitsToUint(0.0);
+        sharedGradient = 0u;
+        sharedResolution = CLASS_RELAY;
+    }
+    if (lane < 4u) sharedClassCounts[lane] = 0u;
+    if (lane < 6u) sharedCost[lane] = 0u;
+    barrier();
+
+    uvec2 tile = gl_WorkGroupID.xy * 8u + gl_LocalInvocationID.xy;
+    if (all(lessThan(tile, config.tileGridExtent))) {
+        uint recordIndex = tile.y * config.tileGridExtent.x + tile.x;
+        TileRecord record = records[recordIndex];
+        uint requestedClass = min(record.location.w, CLASS_FULL);
+        uint effectiveClass = enqueue(requestedClass,
+            uvec4(tile, recordIndex, record.proof.w));
+        if (effectiveClass != requestedClass) records[recordIndex].location.w = effectiveClass;
+
+        uint pixels = record.location.z;
+        uint nativeEquivalent = effectiveClass == CLASS_SELECTIVE ? record.proof.x :
+                                effectiveClass >= CLASS_NATIVE ? pixels : 0u;
+        atomicAdd(validTiles, 1u);
+        atomicAdd(sharedClassCounts[effectiveClass], 1u);
+        atomicAdd(sharedPixels, pixels);
+        atomicAdd(sharedNativeEquivalent, nativeEquivalent);
+        atomicMin(sharedMinConfidence, floatBitsToUint(clamp(record.quality.x, 0.0, 1.0)));
+        atomicMax(sharedMaxDepth, floatBitsToUint(max(record.quality.y, 0.0)));
+        atomicMax(sharedMaxMotion, floatBitsToUint(max(record.quality.z, 0.0)));
+        atomicAdd(sharedGradient, quantize(record.quality.w));
+        atomicMax(sharedResolution, effectiveClass);
+        atomicAdd(sharedCost[0], quantize(record.costA.x));
+        atomicAdd(sharedCost[1], quantize(record.costA.y));
+        atomicAdd(sharedCost[2], quantize(record.costA.z));
+        atomicAdd(sharedCost[3], quantize(record.costA.w));
+        atomicAdd(sharedCost[4], quantize(record.costB.x));
+        atomicAdd(sharedCost[5], quantize(record.costB.y));
+
+        atomicAdd(summary.totalTiles, 1u);
+        atomicAdd(summary.classCounts[effectiveClass], 1u);
+        atomicAdd(summary.totalPixels, pixels);
+        atomicAdd(summary.nativeEquivalentPixels, nativeEquivalent);
+        atomicAdd(summary.costTotals[0], quantize(record.costA.x));
+        atomicAdd(summary.costTotals[1], quantize(record.costA.y));
+        atomicAdd(summary.costTotals[2], quantize(record.costA.z));
+        atomicAdd(summary.costTotals[3], quantize(record.costA.w));
+        atomicAdd(summary.costTotals[4], quantize(record.costB.x));
+        atomicAdd(summary.costTotals[5], quantize(record.costB.y));
+    }
+    barrier();
+
+    if (lane == 0u) {
+        uint dominantCost = 0u;
+        for (uint i = 1u; i < 6u; ++i)
+            if (sharedCost[i] > sharedCost[dominantCost]) dominantCost = i;
+        uint nonRelay = sharedClassCounts[CLASS_SELECTIVE] +
+                        sharedClassCounts[CLASS_NATIVE] + sharedClassCounts[CLASS_FULL];
+        bool saturated = float(nonRelay) / float(max(validTiles, 1u)) >=
+                         config.unitSaturationRatio;
+        if (saturated) atomicAdd(summary.saturatedUnits, 1u);
+        uint unitIndex = gl_WorkGroupID.y * config.massiveGridExtent.x + gl_WorkGroupID.x;
+        units[unitIndex] = MassiveUnitRecord(
+            uvec4(gl_WorkGroupID.xy, validTiles, sharedResolution),
+            uvec4(sharedClassCounts[0], sharedClassCounts[1],
+                  sharedClassCounts[2], sharedClassCounts[3]),
+            uvec4(dominantCost, saturated ? 1u : 0u,
+                  sharedNativeEquivalent, sharedPixels),
+            vec4(uintBitsToFloat(sharedMinConfidence),
+                 uintBitsToFloat(sharedMaxDepth), uintBitsToFloat(sharedMaxMotion),
+                 float(sharedGradient) / QUANTIZE / float(max(validTiles, 1u))));
+    }
+}

@@ -1,0 +1,43 @@
+#version 460 core
+
+// The relay candidate is never silently trusted. Pixels marked for native
+// refinement must have a valid native result before this frame may become history.
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D relayCandidate;
+layout(binding = 1) uniform sampler2D nativeRefineColor;
+layout(binding = 2) uniform usampler2D nativeRefineMask;
+layout(binding = 3) uniform usampler2D nativeValidityMask;
+layout(rgba16f, binding = 0) writeonly uniform image2D resolvedColor;
+
+layout(std430, binding = 4) buffer ProofCounters {
+    uint unresolvedPixels;
+    uint relayedPixels;
+    uint nativelyRefinedPixels;
+} proof;
+
+layout(std140, binding = 5) uniform ResolveBlock {
+    uvec2 outputExtent;
+} resolve;
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(pixel, ivec2(resolve.outputExtent)))) return;
+
+    bool needsNative = texelFetch(nativeRefineMask, pixel, 0).r != 0u;
+    bool nativeValid = texelFetch(nativeValidityMask, pixel, 0).r != 0u;
+    vec4 value;
+    if (!needsNative) {
+        value = texelFetch(relayCandidate, pixel, 0);
+        atomicAdd(proof.relayedPixels, 1u);
+    } else if (nativeValid) {
+        value = texelFetch(nativeRefineColor, pixel, 0);
+        atomicAdd(proof.nativelyRefinedPixels, 1u);
+    } else {
+        // Diagnostic magenta cannot be published. A non-zero unresolved count
+        // invalidates the proof and forces a native full frame.
+        value = vec4(1.0, 0.0, 1.0, 1.0);
+        atomicAdd(proof.unresolvedPixels, 1u);
+    }
+    imageStore(resolvedColor, pixel, value);
+}

@@ -1,0 +1,102 @@
+#version 460 core
+
+// Open temporal super-resolution pass. A native FULL frame seeds history. Later
+// reduced-cost frames copy its pathway through motion, depth and confidence.
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform sampler2D currentColor;
+layout(binding = 1) uniform sampler2D currentDepth;
+layout(binding = 2) uniform sampler2D motionVectors; // current UV -> previous UV delta
+layout(binding = 3) uniform sampler2D reactiveMask;
+layout(binding = 4) uniform sampler2D historyColor;
+layout(binding = 5) uniform sampler2D historyDepth;
+layout(binding = 6) uniform usampler2D currentIdentity; // EIN slot + generation
+layout(binding = 7) uniform usampler2D historyIdentity;
+
+layout(rgba16f, binding = 0) writeonly uniform image2D reconstructedColor;
+layout(r16f, binding = 1) writeonly uniform image2D confidenceOutput;
+layout(r8ui, binding = 2) writeonly uniform uimage2D nativeRefineMask;
+
+layout(std140, binding = 8) uniform RelayBlock {
+    uvec2 inputExtent;
+    uvec2 outputExtent;
+    uint fullSeed;
+    uint seedGeneration;
+    float maximumHistoryWeight;
+    float depthRejectionScale;
+} relay;
+
+vec3 rgbToYCoCg(vec3 c) {
+    float co = c.r - c.b;
+    float t = c.b + co * 0.5;
+    float cg = c.g - t;
+    return vec3(t + cg * 0.5, co, cg);
+}
+
+vec3 yCoCgToRgb(vec3 c) {
+    float t = c.x - c.z * 0.5;
+    float g = c.z + t;
+    float b = t - c.y * 0.5;
+    float r = b + c.y;
+    return vec3(r, g, b);
+}
+
+void currentNeighbourhood(vec2 uv, out vec3 lo, out vec3 hi, out vec3 center) {
+    vec2 texel = 1.0 / vec2(relay.inputExtent);
+    lo = vec3(1e20);
+    hi = vec3(-1e20);
+    center = rgbToYCoCg(textureLod(currentColor, uv, 0.0).rgb);
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            vec3 sampleValue = rgbToYCoCg(
+                textureLod(currentColor, uv + vec2(x, y) * texel, 0.0).rgb);
+            lo = min(lo, sampleValue);
+            hi = max(hi, sampleValue);
+        }
+    }
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(pixel, ivec2(relay.outputExtent)))) return;
+
+    vec2 uv = (vec2(pixel) + 0.5) / vec2(relay.outputExtent);
+    vec3 lo, hi, current;
+    currentNeighbourhood(uv, lo, hi, current);
+
+    if (relay.fullSeed != 0u) {
+        imageStore(reconstructedColor, pixel, vec4(yCoCgToRgb(current), 1.0));
+        imageStore(confidenceOutput, pixel, vec4(1.0, 0.0, 0.0, 0.0));
+        imageStore(nativeRefineMask, pixel, uvec4(0u));
+        return;
+    }
+
+    vec2 motion = textureLod(motionVectors, uv, 0.0).xy;
+    vec2 historyUv = uv + motion;
+    bool onScreen = all(greaterThanEqual(historyUv, vec2(0.0))) &&
+                    all(lessThanEqual(historyUv, vec2(1.0)));
+    float currentZ = textureLod(currentDepth, uv, 0.0).r;
+    float previousZ = textureLod(historyDepth, historyUv, 0.0).r;
+    uvec2 currentId = textureLod(currentIdentity, uv, 0.0).rg;
+    uvec2 previousId = textureLod(historyIdentity, historyUv, 0.0).rg;
+    bool identityMatches = all(equal(currentId, previousId));
+    float depthError = abs(currentZ - previousZ) /
+                       max(max(currentZ, previousZ), 1e-4);
+    float depthConfidence = exp(-depthError * relay.depthRejectionScale);
+    float reactive = textureLod(reactiveMask, uv, 0.0).r;
+    float motionConfidence = exp(-length(motion * vec2(relay.outputExtent)) * 0.018);
+    float confidence = float(onScreen && identityMatches) *
+                       depthConfidence * motionConfidence * (1.0 - reactive);
+    bool requiresNativeRefine = !onScreen || !identityMatches ||
+                                depthConfidence < 0.985 || reactive > 0.05;
+
+    vec3 history = rgbToYCoCg(textureLod(historyColor, historyUv, 0.0).rgb);
+    vec3 margin = (hi - lo) * mix(0.02, 0.18, confidence);
+    history = clamp(history, lo - margin, hi + margin);
+    float historyWeight = min(relay.maximumHistoryWeight, 0.94) * confidence;
+    vec3 result = mix(current, history, historyWeight);
+
+    imageStore(reconstructedColor, pixel, vec4(yCoCgToRgb(result), 1.0));
+    imageStore(confidenceOutput, pixel, vec4(confidence, 0.0, 0.0, 0.0));
+    imageStore(nativeRefineMask, pixel, uvec4(requiresNativeRefine ? 1u : 0u));
+}

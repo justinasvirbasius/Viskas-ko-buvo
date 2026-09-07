@@ -1,0 +1,59 @@
+#version 460 core
+
+layout(local_size_x = 64) in;
+
+layout(std140, binding = 0) uniform CameraBlock {
+    mat4 viewProjection;
+    vec4 frustumPlanes[6];
+    vec4 viewportAndNearFar; // width, height, near, far
+    uint objectCount;
+} camera;
+
+struct ObjectGpu {
+    mat4 world;
+    vec4 sphere;             // world xyz + radius
+    uvec4 identity;          // EIN slot, generation, flags, material
+};
+
+struct VisibleRecord {
+    uint objectIndex;
+    uint lod;
+    uint generation;
+    float projectedPixels;
+};
+
+struct DrawElementsIndirectCommand {
+    uint count;
+    uint instanceCount;
+    uint firstIndex;
+    uint baseVertex;
+    uint baseInstance;
+};
+
+layout(std430, binding = 1) readonly buffer Objects { ObjectGpu objectData[]; };
+layout(std430, binding = 2) writeonly buffer Visible { VisibleRecord visible[]; };
+layout(std430, binding = 3) buffer Commands { DrawElementsIndirectCommand command[3]; };
+
+bool sphereInside(vec4 sphere) {
+    for (uint i = 0; i < 6; ++i)
+        if (dot(camera.frustumPlanes[i].xyz, sphere.xyz) +
+            camera.frustumPlanes[i].w < -sphere.w) return false;
+    return true;
+}
+
+void main() {
+    const uint objectIndex = gl_GlobalInvocationID.x;
+    if (objectIndex >= camera.objectCount) return;
+    const ObjectGpu item = objectData[objectIndex];
+    if ((item.identity.z & 1u) == 0u || !sphereInside(item.sphere)) return;
+
+    vec4 viewCenter = camera.viewProjection * vec4(item.sphere.xyz, 1.0);
+    float distanceTerm = max(abs(viewCenter.w), camera.viewportAndNearFar.z);
+    float projectedPixels = item.sphere.w * camera.viewportAndNearFar.y / distanceTerm;
+    uint lod = projectedPixels > 180.0 ? 0u : projectedPixels > 48.0 ? 1u : 2u;
+
+    uint localInstance = atomicAdd(command[lod].instanceCount, 1u);
+    uint destination = command[lod].baseInstance + localInstance;
+    visible[destination] = VisibleRecord(
+        objectIndex, lod, item.identity.y, projectedPixels);
+}
