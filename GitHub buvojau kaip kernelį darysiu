@@ -1,0 +1,12 @@
+exec() is replacement、 not
+process creation
+Keep these concepts separate:
+fork/create process -> creates process identity
+1/41
+exec -> replaces process image
+Conceptually: Result<void> exec(Process& process, FileHandle
+executable, const ExecArguments& args);
+A successful exec() replaces:
+old VM mappings old executable image old
+stack old runtime state
+while preserving whatever process attributes our ABI explicitly says survive exec
