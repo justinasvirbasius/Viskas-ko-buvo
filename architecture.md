@@ -99,6 +99,17 @@ An EIN handle is identity plus authority. It is never a pointer and never a GPU 
 Movement between coats is explicit. Reuse is fence-gated. Each recycled slot receives a new
 generation so an old application handle cannot accidentally address new content.
 
+Memory relayering reserves the entire destination allocation while retaining the source, blocks
+dependent transitions, and activates a same-slot/new-generation EIN handle only after its copy
+fence. Target pressure preserves the source and emits fallback. A bounded shell-notice ring reports
+scheduled/block, committed/proceed, and fallback phases without becoming allocator state itself.
+
+The Full-Path executive adds a non-blocking schedule above these mechanisms. Caller-supplied
+monotonic timestamps bound every frame and stage; an advancing completion token is required to keep
+a stage alive. LAN and memory-relayer overruns leave the proof path through explicit local/source
+fallbacks. Any proof-critical overrun invalidates the candidate and schedules FULL. The executive
+does not sleep, and early completion returns time directly to the frame.
+
 ## Supporting connectivity contract
 
 A supporting connection is `(source node, destination node, port kind, access)`. Port kinds are control,
@@ -151,6 +162,9 @@ No application may insert an untracked write between those operations. Destructi
 - ALU, memory, branch, texture, overdraw, and post cost aggregation plus saturation telemetry.
 - versioned LAN coat-capacity discovery, explicit trust, massive-unit leases, proof gating, and
   deterministic local fallback.
+- fence-bound memory relayering with canonical EIN rollover and bounded shell-notice telemetry.
+- transactional submissions that publish neither partial state nor a fence on validation failure;
+- deadline-aware frame execution with progress watchdogs, exception containment, and FULL cooldown.
 
 The trace backend makes the contracts testable without requiring a window system. It deliberately
 does not pretend that a GPU object was created.
