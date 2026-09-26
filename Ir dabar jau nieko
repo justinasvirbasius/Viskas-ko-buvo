@@ -1,0 +1,9 @@
+
+static uint32_t or_rejuker_kernel_checksum(const ORRejukerKernel *kernel) {
+    struct {
+        float compass_turns;
+        float juke_depth;
+        float forward_gain;
+        float slew_limit;
+        float output_ceiling;
+    } contract;
