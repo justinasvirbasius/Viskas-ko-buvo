@@ -1,0 +1,129 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <functional>
+#include <cstdint>
+
+namespace RichtSystem {
+
+enum class RechtState {
+    Richt,
+    Nicht,
+    Deferred,
+    Attonal,
+    Recovery
+};
+
+enum class Operation {
+    Execute,
+    Modify,
+    Release,
+    Suspend,
+    Restore
+};
+
+struct SuplexContext {
+    uint64_t id;
+    Operation operation;
+    RechtState state;
+
+    double entropy;
+    double stability;
+
+    bool authorized;
+};
+
+struct SuplexResult {
+    RechtState state;
+    bool accepted;
+    std::string reason;
+};
+
+class NichtSuplexor {
+private:
+
+    double entropyLimit = 0.75;
+    double minimumStability = 0.30;
+
+    std::vector<SuplexResult> history;
+
+public:
+
+    SuplexResult evaluate(
+        const SuplexContext& ctx
+    ) {
+        SuplexResult result;
+
+        if (!ctx.authorized) {
+            result = {
+                RechtState::Nicht,
+                false,
+                "Nicht Recht: unauthorized operation"
+            };
+        }
+
+        else if (
+            ctx.entropy > entropyLimit
+        ) {
+            result = {
+                RechtState::Attonal,
+                false,
+                "Attonal: entropy exceeds limit"
+            };
+        }
+
+        else if (
+            ctx.stability < minimumStability
+        ) {
+            result = {
+                RechtState::Recovery,
+                false,
+                "Disdain Moment: stability violation"
+            };
+        }
+
+        else {
+            result = {
+                RechtState::Richt,
+                true,
+                "Richt: operation accepted"
+            };
+        }
+
+        history.push_back(result);
+
+        return result;
+    }
+
+    void printHistory() const {
+        for (const auto& event : history) {
+            std::cout
+                << event.reason
+                << '\n';
+        }
+    }
+};
+
+}
+
+int main() {
+
+    using namespace RichtSystem;
+
+    NichtSuplexor governor;
+
+    SuplexContext context {
+        1,
+        Operation::Execute,
+        RechtState::Deferred,
+        0.42,
+        0.91,
+        true
+    };
+
+    auto result = governor.evaluate(context);
+
+    std::cout << result.reason << '\n';
+
+    return result.accepted ? 0 : 1;
+}
