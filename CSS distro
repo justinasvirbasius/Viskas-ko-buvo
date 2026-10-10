@@ -1,0 +1,242 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <cmath>
+#include <cstdint>
+
+namespace Richt {
+
+enum class Mode {
+    Idle,
+    Observe,
+    Validate,
+    Authorize,
+    Execute,
+    Modify,
+    Suspend,
+    Resume,
+    Recover,
+    Synchronize,
+    Release,
+    Terminate
+};
+
+enum class State {
+    Richt,
+    Nicht,
+    Attonal,
+    Deferred,
+    Recovering
+};
+
+struct Context {
+    uint64_t id = 0;
+
+    Mode mode = Mode::Idle;
+    State state = State::Deferred;
+
+    double entropy = 0.0;
+    double stability = 1.0;
+
+    bool authorized = false;
+};
+
+struct Decision {
+    State state;
+    bool permitted;
+    std::string reason;
+};
+
+class RichtGovernor {
+public:
+    Decision evaluate(const Context& ctx) const {
+
+        if (!ctx.authorized) {
+            return {
+                State::Nicht,
+                false,
+                "Richt denied: authorization missing"
+            };
+        }
+
+        if (!std::isfinite(ctx.entropy) ||
+            !std::isfinite(ctx.stability)) {
+            return {
+                State::Attonal,
+                false,
+                "Invalid numerical state"
+            };
+        }
+
+        if (ctx.entropy < 0.0 ||
+            ctx.entropy > 1.0 ||
+            ctx.stability < 0.0 ||
+            ctx.stability > 1.0) {
+            return {
+                State::Attonal,
+                false,
+                "State outside permitted domain"
+            };
+        }
+
+        if (ctx.entropy > 0.75) {
+            return {
+                State::Attonal,
+                false,
+                "Entropy threshold exceeded"
+            };
+        }
+
+        if (ctx.stability < 0.30) {
+            return {
+                State::Recovering,
+                false,
+                "Stability recovery required"
+            };
+        }
+
+        return {
+            State::Richt,
+            true,
+            "Richt validation successful"
+        };
+    }
+};
+
+class OberrichtGovernor {
+public:
+    Decision verify(
+        const Context& ctx,
+        const Decision& first
+    ) const {
+
+        if (!first.permitted ||
+            first.state != State::Richt) {
+            return {
+                first.state,
+                false,
+                "Oberricht rejected primary decision"
+            };
+        }
+
+        if (ctx.mode == Mode::Terminate &&
+            ctx.stability < 0.90) {
+            return {
+                State::Deferred,
+                false,
+                "Termination requires high stability"
+            };
+        }
+
+        if (ctx.mode == Mode::Execute &&
+            ctx.entropy > 0.60) {
+            return {
+                State::Deferred,
+                false,
+                "Execution deferred by Oberricht"
+            };
+        }
+
+        return {
+            State::Richt,
+            true,
+            "Oberricht verification successful"
+        };
+    }
+};
+
+class DoubleSuplexor {
+private:
+    RichtGovernor primary;
+    OberrichtGovernor secondary;
+
+    std::vector<Decision> history;
+
+public:
+    Decision process(const Context& ctx) {
+
+        Decision first = primary.evaluate(ctx);
+
+        Decision final =
+            secondary.verify(ctx, first);
+
+        history.push_back(final);
+
+        return final;
+    }
+
+    void printHistory() const {
+
+        for (const auto& decision : history) {
+            std::cout
+                << (decision.permitted
+                    ? "[RICHT] "
+                    : "[NICHT] ")
+                << decision.reason
+                << '\n';
+        }
+    }
+};
+
+} // namespace Richt
+
+int main() {
+
+    Richt::DoubleSuplexor system;
+
+    Richt::Context operation;
+
+    operation.id = 101;
+    operation.mode = Richt::Mode::Execute;
+    operation.entropy = 0.45;
+    operation.stability = 0.95;
+    operation.authorized = true;
+
+    auto result = system.process(operation);
+
+    std::cout << result.reason << '\n';
+
+    system.printHistory();
+
+    return result.permitted ? 0 : 1;
+}
+namespace Richt {
+
+class RechtRecovery {
+public:
+    bool restore(Context& ctx) {
+
+        if (!ctx.authorized) {
+            return false;
+        }
+
+        if (!std::isfinite(ctx.entropy) ||
+            !std::isfinite(ctx.stability)) {
+            return false;
+        }
+
+        if (ctx.entropy < 0.0 ||
+            ctx.entropy > 1.0 ||
+            ctx.stability < 0.0 ||
+            ctx.stability > 1.0) {
+            return false;
+        }
+
+        if (ctx.stability >= 0.30) {
+            return false;
+        }
+
+        ctx.state = State::Recovering;
+        ctx.mode = Mode::Recover;
+
+        // Proposed recovery parameters.
+        // Actual recovery must be independently verified.
+        ctx.entropy *= 0.5;
+        ctx.stability =
+            std::min(1.0, ctx.stability + 0.25);
+
+        return true;
+    }
+};
+
+}
