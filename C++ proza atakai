@@ -1,0 +1,384 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+#include <stdexcept>
+#include <string>
+#include <utility>
+
+namespace Klari {
+
+enum class Route {
+    DIRECT,
+    PRISM,
+    RECLUSE,
+    REJECTED
+};
+
+enum class State {
+    IDLE,
+    VALIDATING,
+    EXECUTING,
+    GOVERNING,
+    CHECKPOINT,
+    ERROR
+};
+
+// KLARI: validate numerical properties.
+class KlariValidator {
+public:
+    static bool finite(const std::vector<double>& values) {
+        for (double value : values) {
+            if (!std::isfinite(value))
+                return false;
+        }
+        return true;
+    }
+
+    static bool validInput(
+        const std::vector<double>& input,
+        size_t expected
+    ) {
+        return input.size() == expected && finite(input);
+    }
+};
+
+// VELOP: progress and execution measurements.
+struct VelopMeasure {
+    unsigned long executions = 0;
+    unsigned long accepted = 0;
+    unsigned long rejected = 0;
+
+    double progress() const {
+        if (executions == 0)
+            return 0.0;
+
+        return static_cast<double>(accepted) /
+               static_cast<double>(executions);
+    }
+};
+
+// SUBSTRATE: neural computation.
+class NeuralSubstrate {
+private:
+    std::vector<std::vector<double>> weights;
+    std::vector<double> biases;
+
+public:
+    NeuralSubstrate(size_t inputs, size_t outputs) {
+        if (inputs == 0 || outputs == 0)
+            throw std::invalid_argument("Invalid dimensions");
+
+        weights.resize(outputs, std::vector<double>(inputs));
+        biases.resize(outputs, 0.0);
+
+        for (size_t o = 0; o < outputs; ++o) {
+            for (size_t i = 0; i < inputs; ++i) {
+                weights[o][i] =
+                    0.1 * static_cast<double>((o + i) % 5 + 1);
+            }
+        }
+    }
+
+    std::vector<double> forward(
+        const std::vector<double>& input
+    ) const {
+        if (input.size() != weights.front().size())
+            throw std::invalid_argument("Input size mismatch");
+
+        std::vector<double> output(weights.size());
+
+        for (size_t o = 0; o < weights.size(); ++o) {
+            double sum = biases[o];
+
+            for (size_t i = 0; i < input.size(); ++i)
+                sum += input[i] * weights[o][i];
+
+            output[o] = std::tanh(sum);
+        }
+
+        return output;
+    }
+
+    size_t inputSize() const {
+        return weights.front().size();
+    }
+};
+
+// PRISM: determines execution route.
+class PrismRouter {
+public:
+    Route select(const std::vector<double>& input) const {
+        if (input.empty() || !KlariValidator::finite(input))
+            return Route::REJECTED;
+
+        double magnitude = 0.0;
+
+        for (double value : input)
+            magnitude = std::max(magnitude, std::abs(value));
+
+        if (magnitude > 100.0)
+            return Route::REJECTED;
+
+        if (magnitude > 10.0)
+            return Route::RECLUSE;
+
+        if (magnitude > 1.0)
+            return Route::PRISM;
+
+        return Route::DIRECT;
+    }
+};
+
+// SELF GOVERNOR: bounded adaptation.
+class SelfGovernor {
+private:
+    double gain = 1.0;
+
+public:
+    void regulate(double progress) {
+        if (progress < 0.5)
+            gain *= 0.95;
+        else
+            gain *= 1.01;
+
+        gain = std::clamp(gain, 0.1, 2.0);
+    }
+
+    double apply(double value) const {
+        return std::tanh(value * gain);
+    }
+
+    double currentGain() const {
+        return gain;
+    }
+};
+
+// CIST: validated state snapshot.
+struct CistCheckpoint {
+    State state = State::IDLE;
+    Route route = Route::REJECTED;
+    std::vector<double> output;
+    double progress = 0.0;
+    double gain = 1.0;
+};
+
+// GAVORER: central execution authority.
+class NeuralGovernor {
+private:
+    NeuralSubstrate substrate;
+    PrismRouter prism;
+    SelfGovernor selfGovernor;
+    VelopMeasure measure;
+
+    State state = State::IDLE;
+    CistCheckpoint checkpoint;
+
+    std::vector<Route> rejectedRoutes;
+
+public:
+    NeuralGovernor(size_t inputs, size_t outputs)
+        : substrate(inputs, outputs) {}
+
+    std::vector<double> execute(
+        const std::vector<double>& input
+    ) {
+        ++measure.executions;
+        state = State::VALIDATING;
+
+        if (!KlariValidator::validInput(
+                input, substrate.inputSize())) {
+            reject();
+            return {};
+        }
+
+        Route route = prism.select(input);
+
+        if (route == Route::REJECTED) {
+            reject();
+            return {};
+        }
+
+        state = State::EXECUTING;
+
+        std::vector<double> processed = input;
+
+        // PRISM: normalize large values.
+        if (route == Route::PRISM ||
+            route == Route::RECLUSE) {
+
+            double magnitude = 0.0;
+
+            for (double value : processed)
+                magnitude = std::max(
+                    magnitude, std::abs(value));
+
+            if (magnitude > 1.0) {
+                for (double& value : processed)
+                    value /= magnitude;
+            }
+        }
+
+        auto output = substrate.forward(processed);
+
+        state = State::GOVERNING;
+
+        for (double& value : output)
+            value = selfGovernor.apply(value);
+
+        if (!KlariValidator::finite(output)) {
+            reject();
+            return {};
+        }
+
+        ++measure.accepted;
+
+        selfGovernor.regulate(measure.progress());
+
+        state = State::CHECKPOINT;
+
+        checkpoint = {
+            state,
+            route,
+            output,
+            measure.progress(),
+            selfGovernor.currentGain()
+        };
+
+        return output;
+    }
+
+    void reject() {
+        ++measure.rejected;
+        rejectedRoutes.push_back(Route::REJECTED);
+        state = State::ERROR;
+    }
+
+    void report() const {
+        std::cout << "\n=== KLARI GOVERNOR ===\n";
+        std::cout << "Executions: "
+                  << measure.executions << "\n";
+        std::cout << "Accepted: "
+                  << measure.accepted << "\n";
+        std::cout << "Rejected: "
+                  << measure.rejected << "\n";
+        std::cout << "Velop measure: "
+                  << measure.progress() << "\n";
+        std::cout << "Self-governor gain: "
+                  << selfGovernor.currentGain() << "\n";
+    }
+
+    const CistCheckpoint& getCheckpoint() const {
+        return checkpoint;
+    }
+};
+
+} // namespace Klari
+
+int main() {
+    Klari::NeuralGovernor governor(3, 2);
+
+    std::vector<std::vector<double>> inputs = {
+        {0.2, 0.4, 0.6},
+        {2.0, 1.0, 0.5},
+        {12.0, 4.0, 2.0},
+        {150.0, 2.0, 1.0},
+        {0.8, 0.3, 0.1}
+    };
+
+    for (const auto& input : inputs) {
+        auto output = governor.execute(input);
+
+        std::cout << "Output: ";
+
+        if (output.empty()) {
+            std::cout << "REJECTED";
+        } else {
+            for (double value : output)
+                std::cout << value << " ";
+        }
+
+        std::cout << "\n";
+    }
+
+    governor.report();
+}
+
+                INPUT
+                  |
+                  v
+          KLARI VALIDATOR
+                  |
+          +-------+-------+
+          |               |
+        VALID           INVALID
+          |               |
+          v               v
+      PRISM ROUTER    NICHT RICHT
+          |               |
+    +-----+-----+         v
+    |     |     |     REJECTED LOG
+ DIRECT PRISM RECLUSE
+    |     |     |
+    +-----+-----+
+          |
+          v
+    NEURAL SUBSTRATE
+          |
+          v
+     SELF GOVERNOR
+          |
+          v
+     OUTPUT VALIDATOR
+          |
+          v
+      CIST CHECKPOINT
+          |
+          v
+      VELOP MEASURE
+
+struct LearningDecree {
+    double learningRate = 0.001;
+    double gradientLimit = 1.0;
+    double lossThreshold = 0.01;
+
+    bool trainingEnabled = false;
+};
+
+class LearningGovernor {
+private:
+    LearningDecree decree;
+
+public:
+    void configure(const LearningDecree& newDecree) {
+        if (!std::isfinite(newDecree.learningRate) ||
+            newDecree.learningRate <= 0.0 ||
+            !std::isfinite(newDecree.gradientLimit) ||
+            newDecree.gradientLimit <= 0.0 ||
+            !std::isfinite(newDecree.lossThreshold) ||
+            newDecree.lossThreshold < 0.0) {
+            throw std::invalid_argument(
+                "Invalid learning decree");
+        }
+
+        decree = newDecree;
+    }
+
+    bool authorizeTraining(double loss) const {
+        return decree.trainingEnabled &&
+               std::isfinite(loss) &&
+               loss > decree.lossThreshold;
+    }
+
+    double regulateGradient(double gradient) const {
+        if (!std::isfinite(gradient))
+            throw std::invalid_argument(
+                "Non-finite gradient");
+
+        return std::clamp(
+            gradient,
+            -decree.gradientLimit,
+            decree.gradientLimit
+        );
+    }
+};
