@@ -1,0 +1,23 @@
+VITAL MACHINE
+    |
+    v
+MODALITY INPUT
+    |
+    v
+VELOP ROUTER
+    |
+    v
+RICHT GOVERNOR
+    |
+    v
+OBERRICHT GOVERNOR
+    |
+    +---- NICHT ----> REJECT
+    |
+    +---- ATTONAL --> RECOVERY REQUEST
+    |
+    v
+TOTALRICHT
+    |
+    v
+COMMIT STATE
