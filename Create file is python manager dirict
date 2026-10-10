@@ -1,0 +1,310 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <chrono>
+#include <algorithm>
+#include <numeric>
+#include <string>
+#include <stdexcept>
+
+namespace Klari {
+
+enum class Verdict {
+    APPROVED,
+    CORRECT,
+    REJECTED
+};
+
+struct Measure {
+    double latencyMs = 0.0;
+    double entropy = 0.0;
+    double stability = 1.0;
+    double magnitude = 0.0;
+
+    bool valid = false;
+};
+
+struct GovernorPolicy {
+    double maxLatencyMs = 100.0;
+    double maxMagnitude = 10.0;
+    double minStability = 0.5;
+    double maxEntropy = 5.0;
+};
+
+class VelopMeasure {
+public:
+    static double magnitude(
+        const std::vector<double>& values
+    ) {
+        double sum = 0.0;
+
+        for (double x : values)
+            sum += x * x;
+
+        return std::sqrt(sum);
+    }
+
+    // Shannon entropy of normalized absolute values.
+    static double entropy(
+        const std::vector<double>& values
+    ) {
+        double total = 0.0;
+
+        for (double x : values)
+            total += std::abs(x);
+
+        if (total <= 1e-12)
+            return 0.0;
+
+        double result = 0.0;
+
+        for (double x : values) {
+            double p = std::abs(x) / total;
+
+            if (p > 0.0)
+                result -= p * std::log2(p);
+        }
+
+        return result;
+    }
+
+    static double stability(
+        const std::vector<double>& current,
+        const std::vector<double>& previous
+    ) {
+        if (current.size() != previous.size())
+            return 0.0;
+
+        double difference = 0.0;
+
+        for (size_t i = 0; i < current.size(); ++i) {
+            double d = current[i] - previous[i];
+            difference += d * d;
+        }
+
+        return 1.0 / (1.0 + std::sqrt(difference));
+    }
+
+    static Measure evaluate(
+        const std::vector<double>& output,
+        const std::vector<double>& previous,
+        double latencyMs
+    ) {
+        Measure m;
+
+        if (output.empty() ||
+            !std::isfinite(latencyMs) ||
+            latencyMs < 0.0) {
+            return m;
+        }
+
+        for (double x : output) {
+            if (!std::isfinite(x))
+                return m;
+        }
+
+        m.latencyMs = latencyMs;
+        m.magnitude = magnitude(output);
+        m.entropy = entropy(output);
+
+        m.stability = previous.empty()
+            ? 1.0
+            : stability(output, previous);
+
+        m.valid = std::isfinite(m.magnitude) &&
+                  std::isfinite(m.entropy) &&
+                  std::isfinite(m.stability);
+
+        return m;
+    }
+};
+
+class PerformanceGovernor {
+public:
+    bool approve(
+        const Measure& m,
+        const GovernorPolicy& p
+    ) const {
+        return m.latencyMs <= p.maxLatencyMs;
+    }
+};
+
+class EntropyGovernor {
+public:
+    bool approve(
+        const Measure& m,
+        const GovernorPolicy& p
+    ) const {
+        return m.entropy <= p.maxEntropy;
+    }
+};
+
+class StabilityGovernor {
+public:
+    bool approve(
+        const Measure& m,
+        const GovernorPolicy& p
+    ) const {
+        return m.stability >= p.minStability;
+    }
+};
+
+class PolicyGovernor {
+private:
+    PerformanceGovernor performance;
+    EntropyGovernor entropy;
+    StabilityGovernor stability;
+
+public:
+    Verdict decide(
+        const Measure& m,
+        const GovernorPolicy& policy
+    ) const {
+        if (!m.valid)
+            return Verdict::REJECTED;
+
+        if (m.magnitude > policy.maxMagnitude)
+            return Verdict::REJECTED;
+
+        if (!performance.approve(m, policy))
+            return Verdict::CORRECT;
+
+        if (!entropy.approve(m, policy))
+            return Verdict::CORRECT;
+
+        if (!stability.approve(m, policy))
+            return Verdict::CORRECT;
+
+        return Verdict::APPROVED;
+    }
+};
+
+class NeuralGovernor {
+private:
+    GovernorPolicy policy;
+    PolicyGovernor governor;
+
+    std::vector<double> checkpoint;
+
+    unsigned long approved = 0;
+    unsigned long corrected = 0;
+    unsigned long rejected = 0;
+
+public:
+    explicit NeuralGovernor(GovernorPolicy p)
+        : policy(p) {}
+
+    Verdict enact(
+        const std::vector<double>& output,
+        double latencyMs
+    ) {
+        Measure measure = VelopMeasure::evaluate(
+            output,
+            checkpoint,
+            latencyMs
+        );
+
+        Verdict verdict = governor.decide(
+            measure,
+            policy
+        );
+
+        switch (verdict) {
+            case Verdict::APPROVED:
+                checkpoint = output;
+                ++approved;
+                break;
+
+            case Verdict::CORRECT:
+                ++corrected;
+                break;
+
+            case Verdict::REJECTED:
+                ++rejected;
+                break;
+        }
+
+        std::cout
+            << "Latency: " << measure.latencyMs
+            << " ms | Entropy: " << measure.entropy
+            << " | Stability: " << measure.stability
+            << " | Magnitude: " << measure.magnitude
+            << "\n";
+
+        return verdict;
+    }
+
+    void report() const {
+        std::cout << "\n=== KLARI GOVERNANCE REPORT ===\n";
+        std::cout << "Approved: " << approved << "\n";
+        std::cout << "Correction required: "
+                  << corrected << "\n";
+        std::cout << "Rejected: " << rejected << "\n";
+        std::cout << "Checkpoint dimensions: "
+                  << checkpoint.size() << "\n";
+    }
+
+    const std::vector<double>& lastCheckpoint() const {
+        return checkpoint;
+    }
+};
+
+} // namespace Klari
+
+int main() {
+    Klari::GovernorPolicy policy;
+
+    policy.maxLatencyMs = 50.0;
+    policy.maxMagnitude = 5.0;
+    policy.minStability = 0.4;
+    policy.maxEntropy = 3.0;
+
+    Klari::NeuralGovernor governor(policy);
+
+    std::vector<std::vector<double>> outputs = {
+        {0.2, 0.4, 0.6},
+        {0.3, 0.5, 0.7},
+        {2.0, 3.0, 4.0},
+        {0.4, 0.6, 0.8}
+    };
+
+    for (const auto& output : outputs) {
+        auto start = std::chrono::steady_clock::now();
+
+        // Simulated processing workload.
+        volatile double accumulator = 0.0;
+
+        for (int i = 0; i < 10000; ++i)
+            accumulator += std::sin(i * 0.001);
+
+        (void)accumulator;
+
+        auto end = std::chrono::steady_clock::now();
+
+        double latency =
+            std::chrono::duration<double, std::milli>(
+                end - start
+            ).count();
+
+        Klari::Verdict verdict =
+            governor.enact(output, latency);
+
+        std::cout << "Decision: ";
+
+        switch (verdict) {
+            case Klari::Verdict::APPROVED:
+                std::cout << "APPROVED\n";
+                break;
+
+            case Klari::Verdict::CORRECT:
+                std::cout << "CORRECTION REQUIRED\n";
+                break;
+
+            case Klari::Verdict::REJECTED:
+                std::cout << "REJECTED\n";
+                break;
+        }
+    }
+
+    governor.report();
+}
